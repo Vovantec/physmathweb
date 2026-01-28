@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id         Int      @id @default(autoincrement()) 
+  telegramId BigInt   @unique
+  username   String?
+  firstName  String?
+  photoUrl   String?
+  points     Int      @default(0)
+  isAdmin    Boolean  @default(false)
+  
+  // ВОТ ЭТО ПОЛЕ БЫЛО ПРОПУЩЕНО:
+  attempts   HomeworkAttempt[] 
+}
+
+model Course {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  tasks       Task[]
+}
+
+model Task {
+  id       Int      @id @default(autoincrement())
+  title    String
+  courseId Int
+  course   Course   @relation(fields: [courseId], references: [id])
+  lessons  Lesson[]
+}
+
+model Lesson {
+  id        Int        @id @default(autoincrement())
+  title     String
+  videoUrl  String?
+  pdfId     String?    
+  taskId    Int
+  task      Task       @relation(fields: [taskId], references: [id])
+  questions Question[] 
+  attempts  HomeworkAttempt[] 
+}
+
+model Question {
+  id        Int     @id @default(autoincrement())
+  type      String  // "option" или "value"
+  answer    String
+  content   String?
+  lessonId  Int
+  lesson    Lesson  @relation(fields: [lessonId], references: [id])
+}
+
+model HomeworkAttempt {
+  id        Int      @id @default(autoincrement())
+  userId    BigInt
+  lessonId  Int
+  correct   Int
+  total     Int
+  percent   Int
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [telegramId])
+  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+}
+
+model AuthCode {
+  token     String   @id
+  createdAt DateTime @default(now())
+  userId    BigInt?
+  status    String   @default("PENDING")
+}
