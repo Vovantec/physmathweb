@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 // Сериализация BigInt для логов
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json();
