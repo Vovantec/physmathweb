@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Учим JSON работать с BigInt
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { searchParams } = new URL(request.url);
   const userIdStr = searchParams.get('userId');
 
   let targetTgId: bigint | undefined;
 
-  // 1. Если передан ID пользователя, узнаем его Telegram ID
   if (userIdStr) {
     const internalId = parseInt(userIdStr);
     if (!isNaN(internalId)) {
@@ -24,7 +22,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
   }
 
-  // 2. Загружаем курс с учетом найденного Telegram ID
   const course = await prisma.course.findUnique({
     where: { id: parseInt(id) },
     include: {
@@ -32,7 +29,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
         include: {
           lessons: {
             include: {
-                // Если мы нашли TG ID, фильтруем попытки по нему
                 attempts: targetTgId ? {
                     where: { userId: targetTgId },
                     select: { percent: true, id: true }
