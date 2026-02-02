@@ -1,7 +1,7 @@
 import { checkInternalAuth, jsonResponse } from '@/lib/internal-api';
 import jwt from 'jsonwebtoken';
 
-const SECRET = process.env.BOT_TOKEN || 'secret'; // Тот же ключ, которым подписывали токен на фронте
+const SECRET = process.env.BOT_TOKEN || 'secret';
 
 export async function POST(request: Request) {
   if (!checkInternalAuth(request)) return jsonResponse({ error: 'Unauthorized' }, 401);
