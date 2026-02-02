@@ -73,3 +73,82 @@ model AuthCode {
   userId    BigInt?
   status    String   @default("PENDING")
 }
+
+// === ИГРОВЫЕ МОДЕЛИ ===
+
+model Character {
+  id           Int      @id @default(autoincrement())
+  userId       BigInt   // Связь с User.telegramId
+  name         String
+  class        String   // Воин, Маг и т.д.
+  level        Int      @default(1)
+  exp          Int      @default(0)
+  
+  // Характеристики
+  strength     Int      @default(5)
+  agility      Int      @default(5)
+  endurance    Int      @default(5)
+  intelligence Int      @default(5)
+  
+  hp           Float    @default(100)
+  maxHp        Float    @default(100)
+  
+  // Локация и инвентарь
+  arrMap       String?  @default("100-100") // Координаты X-Y
+  inventory    String   @default("[]")      // JSON строка с предметами
+  
+  active       Boolean  @default(true)
+  user         User     @relation(fields: [userId], references: [telegramId])
+}
+
+model Item {
+  id           Int     @id @default(autoincrement())
+  name         String
+  type         String  // Шлем, Меч и т.д.
+  class        String? // Ограничение по классу
+  description  String?
+  rarity       String? @default("common")
+  
+  // Статы предмета
+  strength     Int     @default(0)
+  agility      Int     @default(0)
+  endurance    Int     @default(0)
+  intelligence Int     @default(0)
+  patk         Int     @default(0)
+  matk         Int     @default(0)
+  pdef         Int     @default(0)
+  mdef         Int     @default(0)
+  
+  img          String? // Путь к картинке
+}
+
+model NPC {
+  id           Int     @id @default(autoincrement())
+  name         String
+  type         String? // Warrior, Mage, etc.
+  level        Int     @default(1)
+  hp           Int     @default(100)
+  attack       Int     @default(10)
+  armor        Int     @default(0)
+  dodge        Int     @default(0)
+  elite        Int     @default(0)
+  
+  drop_main    Int?    // ID предмета, который падает
+  interaction  String? // JSON диалогов/квестов
+  avatar       String?
+}
+
+model Dialog {
+  id         Int     @id @default(autoincrement())
+  parent     Int     @default(0)
+  title      String
+  text       String
+  conditions String? // JSON условий
+}
+
+model Quest {
+  id          Int     @id @default(autoincrement())
+  title       String
+  description String?
+  reward      String? // JSON награды
+}
