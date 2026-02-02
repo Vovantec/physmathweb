@@ -22,3 +22,15 @@ export const EQUIPMENT_SLOTS: Record<number, string> = {
   9: "shoulders", 10: "cape", 11: "ring", 12: "earring", 
   13: "necklace", 14: "offhand"
 };
+
+export interface DialogOption {
+  id: number;
+  text: string;
+}
+
+export interface DialogData {
+  id: number;
+  npcName: string;
+  text: string;
+  options: DialogOption[];
+}

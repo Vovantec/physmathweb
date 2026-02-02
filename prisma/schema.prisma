@@ -16,7 +16,8 @@ model User {
   points     Int      @default(0)
   isAdmin    Boolean  @default(false)
   gameData   String?  @default("{}")
-  attempts   HomeworkAttempt[] 
+  attempts   HomeworkAttempt[]
+  characters Character[]
 }
 
 model Course {
