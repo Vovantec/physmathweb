@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Room } from 'colyseus.js';
+import { Item } from '@/lib/game/types';
+import InventoryModal from './InventoryModal';
 
 // Стили для рамок (из gui.css адаптированные под Tailwind)
 const panelStyle = "bg-slate-900/90 border-2 border-[#4c453f] rounded-md shadow-lg";
@@ -15,8 +17,16 @@ export default function GameUI({ room }: { room: Room }) {
   const [hp, setHp] = useState(100);
   const [maxHp, setMaxHp] = useState(100);
   const [mp, setMp] = useState(100);
+  const [showInventory, setShowInventory] = useState(false);
+  const [inventory, setInventory] = useState<Item[]>([]);
 
   useEffect(() => {
+    // Слушаем обновление инвентаря от сервера
+    room.onMessage("inventory:update", (data: Item[]) => {
+       console.log("Inv updated:", data);
+       setInventory(data);
+    });
+
     // Слушаем чат
     room.onMessage("chat", (message) => {
        setMessages(prev => [...prev, message]);
@@ -36,6 +46,22 @@ export default function GameUI({ room }: { room: Room }) {
     room.send("chat", inputValue);
     setInputValue("");
   };
+
+  // Метод перетаскивания
+  const handleSwap = (fromPos: number, toPos: number) => {
+    // Оптимистичное обновление UI (чтобы не ждало пинга)
+    // В идеале можно обновить локальный стейт, но пока просто шлем запрос
+    room.send("inventory:swap", { oldPos: fromPos, newPos: toPos });
+  };
+
+  // Обработчик клавиш
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyI') setShowInventory(prev => !prev);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <div className="w-full h-full flex flex-col justify-between p-4 pointer-events-none select-none">
@@ -131,6 +157,23 @@ export default function GameUI({ room }: { room: Room }) {
           </div>
 
       </div>
+
+      {/* Кнопка открытия (в нижнем меню) */}
+       <div className="flex gap-1 mb-2 pointer-events-auto">
+          <button 
+             onClick={() => setShowInventory(!showInventory)}
+             className="w-10 h-10 bg-slate-800 ..."
+          >🎒</button>
+          {/* ... */}
+       </div>
+
+       {/* МОДАЛЬНЫЕ ОКНА */}
+       <InventoryModal 
+          isOpen={showInventory} 
+          inventory={inventory} 
+          onClose={() => setShowInventory(false)}
+          onSwap={handleSwap}
+       />
     </div>
   );
 }
