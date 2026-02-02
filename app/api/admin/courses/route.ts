@@ -4,8 +4,10 @@ import { checkAdminAuth } from '@/lib/admin-auth';
 
 export async function POST(request: Request) {
   // Проверка прав
-  const auth = await checkAdminAuth(request);
-  if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const isAdmin = await checkAdminAuth();
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     const { title, description } = await request.json();
