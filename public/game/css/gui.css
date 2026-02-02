@@ -1,0 +1,1118 @@
+/* ===== Оглавление всех меню ===== */
+
+.menu-div {
+	background-image: url(/images/gui/resource/Textures/Background.png);
+  background-size: cover;
+  background-repeat: no-repeat;
+	border: 4px solid rgb(76, 69, 63);
+	border-radius: 5px;
+}
+
+.menu-title-div {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	width: 100%;
+	height: 2vw;
+	border-bottom: 4px solid rgb(76, 69, 63);
+}
+
+.menu-title-img-exit {
+	position: absolute;
+	top: 0.4vw;
+	right: 0.4vw;
+	width: 1.2vw;
+}
+
+.menu-title-span {
+	font-size: 1.2vw;
+	color: rgb(234, 201, 138);
+}
+
+/* ===== FPS счетчик ===== */
+
+.fps-div {
+	display: flex;
+	flex-direction: column;
+	position: absolute;
+	top: 20%;
+	left: 0;
+	background: rgba(0,0,0,.5);
+}
+
+.fps-span {
+	color: white;
+	font-size: 20px;
+	text-align: center;
+	margin: 5px;
+}
+
+/* ===== Отображение группы ===== */
+
+.unit-frame-div {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 40%;
+	max-height: 20%;
+	display: flex;
+}
+
+.unit-frame-player-div {
+	width: 20%;
+	background: rgba(0,0,0,.5);
+	display: flex;
+	flex-direction: column;
+}
+
+.unit-frame-player-name {
+	color: white;
+	font-weight: bold;
+	text-align: center;
+}
+
+.unit-frame-player-img {
+	overflow: hidden;
+	border-radius: 10%;
+	object-fit: contain;
+}
+
+.unit-frame-player-hp {
+	margin: 5px;
+	background: linear-gradient(to right, red var(--walkinghp, 100%), transparent 0);
+	text-align: center;
+}
+
+.unit-frame-player-mp {
+	margin: 5px;
+	background: linear-gradient(to right, skyblue var(--walkingmp, 100%), transparent 0);
+	text-align: center;
+}
+
+/* ===== Панель элементов ===== */
+
+.div-item-bar {
+	display: inline-flex;
+	flex-direction: row;
+	justify-content: flex-end;
+	align-items: flex-end;
+	position: absolute;
+	bottom: 0;
+	right: 0;
+	width: 100%;
+	height: 6%;
+	background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));
+}
+
+.img-item-bar {
+	height: 100%;
+	transition: margin .5s linear;
+}
+.img-item-bar:hover {
+	animation: spin .2s linear;
+}
+
+.img-item-bar-disabled {
+  -webkit-filter: grayscale(100%);
+  -moz-filter: grayscale(100%);
+  -ms-filter: grayscale(100%);
+  -o-filter: grayscale(100%);
+  filter: grayscale(100%);
+  filter: gray; /* IE 6-9 */
+}
+
+/* ===== Чат ===== */
+
+.div-chat-gui {
+	display: inline-flex;
+	flex-direction: row;
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 25%;
+	height: 30%;
+	background: rgba(0, 0, 0, .5);
+}
+
+/* ===== Инвентарь ===== */
+
+.div-inventory {
+	display: flex;
+	flex-wrap: wrap;
+	flex-direction: row;
+	justify-content: space-between;
+	position: absolute;
+	left: 30%;
+	top: 30%;
+	width: 50%;
+	height: 40%;
+}
+
+.item-inventory {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	position: relative;
+	height: calc(100% * (1/7));
+	width: calc(100% * 1/8);
+}
+
+.inner-item-bg-inventory {
+	width: 100%;
+	height: 100%;
+}
+
+.inner-item-inventory {
+	position: absolute;
+	height: 84%;
+	object-fit: contain;
+}
+
+.div-character-inventory {
+	display: flex;
+	flex-wrap: wrap;
+	flex-direction: column;
+	align-content: center;
+	flex-grow: 1;
+	flex-shrink: 1;
+  	flex-basis: 0;
+	height: calc(85% - 12px);
+}
+
+.div-items-inventory {
+	display: flex;
+	flex-wrap: wrap;
+	flex-grow: 1;
+	flex-shrink: 1;
+  	flex-basis: 0;
+	height: calc(85% - 12px);
+	overflow-y: scroll;
+}
+
+.label-items-inventory-money {
+	width: 50%;
+	height: 10%;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	margin: 5px;
+}
+
+/* Меню добавления предмета в инвентарь */
+
+.div-add-items-inventory-menu {
+	display: flex;
+	flex-wrap: wrap;
+	position: absolute;
+	overflow-y: scroll;
+	height: 40%;
+	background: rgba(0, 0, 0, .9);
+	border: 4px solid rgb(76, 69, 63);
+}
+
+.div-add-items-inventory-menu-sub {
+	flex-grow: 1;
+}
+
+/* ===== Описание предмета ===== */
+
+.div-item-info {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	flex-wrap: wrap;
+	width: auto;
+	height: auto;
+	font-size: 1vw;
+	background: rgba(0,0,0,.9);
+	border: 2px solid rgb(76, 69, 63);
+	padding: 5px;
+}
+
+/* ===== Умения ===== */
+
+svg {
+	width: 80%;
+	height: 100%;
+}
+
+.node circle {
+  fill: steelblue;
+  stroke: #fff;
+  stroke-width: 3px;
+  transition: linear .3s;
+}
+.node circle:hover {
+	fill: #fff;
+}
+
+.node text {
+	fill: white;
+}
+
+.link {
+  fill: none;
+  stroke: #ccc;
+  stroke-width: 1.5px;
+}
+
+/* ===== Задания ===== */
+
+.quests-settings-main-div {
+	position: absolute;
+	top: 20%;
+	left: 20%;
+	width: 60%;
+	height: 60%;
+}
+
+.quests-list-div {
+	display: flex;
+	flex-direction: column;
+	float: left;
+	width: 30%;
+	height: calc(100% - 2vw - 4px);
+	overflow-y: auto;
+	padding-top: 5px;
+}
+
+.quests-list-span {
+	text-align: center;
+  margin: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, .03);
+  transition: background linear .3s;
+  border: 3px solid rgba(0,0,0,0);
+  transition: linear .3s;
+}
+.quests-list-span:hover {
+	color: #D0904C;
+	border: 3px solid rgba(255, 255, 255, .1);
+}
+
+.quests-list-span-selected {
+	color: #D0904C; 
+  font-weight: bold;
+	border: 3px solid rgba(255, 255, 255, .1);
+}
+
+.quests-span {
+	display: block;
+	margin: 5px;
+}
+
+.quests-img {
+	height: 48px;
+}
+
+.quests-button {
+  color: rgb(234, 201, 138);
+  padding: 7px;
+  width: 10%;
+  height: auto;
+  outline: none;
+  text-align: center;
+  border: 0;
+  background-image: url(/images/gui/resource/Textures/Buttons/Rectangular/Large/Button_RL_Background_Green.png);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transition: box-shadow 1s;
+}
+.quests-button:hover {
+	-webkit-box-shadow: 0px 5px 30px 4px rgba(163, 98, 41, 0.2);
+  -moz-box-shadow: 0px 5px 30px 4px rgba(163, 98, 41, 0.2);
+  box-shadow: 0px 5px 30px 4px rgba(163, 98, 41, 0.2);
+  transition: box-shadow 1s;
+}
+
+.quests-description {
+	height: calc(30% - 2vw - 4px);
+	padding: 5px;
+	text-align: center;
+	overflow-y: auto;
+}
+
+.quests-other {
+	height: 15%;
+	padding: 5px;
+	text-align: center;
+}
+
+/* ===== Настройки ===== */
+
+.settings-list-div {
+	display: table;
+	table-layout: fixed;
+	width: 100%;
+	height: 30px;
+	border-bottom: 1px solid rgb(76, 69, 63);
+}
+
+.settings-list-span {
+	display: table-cell;
+	padding: 10px;
+	text-align: center;
+	vertical-align: middle;
+	transition: linear .3s;
+}
+.settings-list-span:hover {
+	background: rgba(255, 215, 0, .1);
+  color: rgb(234, 201, 138);
+  font-size: 18px;
+}
+.settings-list-span-selected {
+	background: rgba(255, 215, 0, .1);
+  color: rgb(234, 201, 138);
+  font-size: 18px;
+}
+
+/* ===== Админ-панели ===== */
+
+/* Верхняя панель */
+.admin-menu-div {
+	position: absolute;
+	left: 0;
+	top: 0;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	background: rgba(0,0,0,.95);
+}
+
+.admin-menu-div-content {
+	flex-grow: 1;
+	height: calc(100% - 30px);
+}
+
+.admin-menu-quests-list {
+	display: table;
+	float: left;
+	width: 20%;
+}
+
+.admin-menu-quests-list-ul {
+	font-size: 18px;
+	list-style-type: circle;
+}
+
+.admin-menu-quests-list-li {
+
+}
+
+/* Редактирование диалогов */
+
+.admin-dialog-div {
+	width: calc(20% - 1px);
+	height: 100%;
+	float: right;
+	text-align: center;
+	border-left: 1px solid rgb(76, 69, 63);
+	overflow-y: auto;
+}
+
+.admin-dialog-id {
+	display: block;
+	color: #D0904C;
+	font-size: 20px;
+	font-weight: bold;
+	margin: 10px 0;
+}
+
+.admin-dialog-textarea {
+	resize: none;
+	width: 90%;
+	margin: 5px;
+}
+
+.admin-dialog-select {
+	width: 100%;
+	margin: 5px 0;
+	text-align: center;
+}
+
+.admin-dialog-delete {
+	width: 24px;
+	height: 24px;
+}
+
+.admin-dialog-button {
+	width: 100%;
+	color: #D0904C;
+	padding: 10px;
+	margin: 5px 0;
+	outline: none;
+	border-top: 1px solid rgb(76, 69, 63);
+	border-bottom: 1px solid rgb(76, 69, 63);
+	border-left: none;
+	border-right: none;
+	background: none;
+	transition: linear .3s;
+}
+.admin-dialog-button:hover {
+	background: rgba(76, 69, 63, .3);
+}
+.admin-dialog-button:active {
+	background: rgba(76, 69, 63, .6);
+}
+.admin-dialog-button:last-child {
+	margin-bottom: 20px;
+}
+
+.admin-dialog-div-options {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	margin: 5px;
+	width: calc(100% - 10px);
+}
+
+.admin-dialog-button-add {
+	width: 90%;
+	color: #D0904C;
+	text-align: center;
+	padding: 10px;
+	border: 2px dashed #D0904C;
+	background: none;
+	transition: linear .3s;
+}
+.admin-dialog-button-add:hover {
+	border: 2px solid #D0904C;
+}
+
+.admin-dialog-inner-div {
+	width: calc(90% - 10px);
+	margin-bottom: 5px;
+	padding: 5px;
+	border: 1px solid rgb(76, 69, 63);
+}
+
+/* Редактирование NPC */
+
+.admin-npc-main-menu {
+	display: flex;
+	flex-wrap: wrap;
+	width: 80%;
+	height: 100%;
+	float: left;
+}
+
+.admin-npc-sub-menu {
+	width: calc(20% - 1px);
+	height: 100%;
+	float: right;
+	border-left: 1px solid rgb(76, 69, 63);
+	overflow-y: auto;
+}
+
+.admin-npc-sub-menu-inner-div {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	height: 10%;
+	border-bottom: 1px solid rgb(76, 69, 63);
+	transition: linear .3s;
+}
+.admin-npc-sub-menu-inner-div:hover {
+	background: rgba(76, 69, 63, .3);
+}
+.admin-npc-sub-menu-inner-div:active {
+	background: rgba(76, 69, 63, .6);
+}
+
+.admin-npc-sub-menu-img {
+	height: calc(100% - 10px);
+	margin: 5px;
+}
+
+.admin-npc-upper-panel {
+	display: flex;
+	width: 100%;
+	height: 25%;
+	border-bottom: 1px solid rgb(76, 69, 63);
+}
+
+.admin-npc-skin-avatar {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	width: 20%;
+	height: 100%;
+}
+
+.admin-npc-skin-canvas {
+	height: 80%;
+}
+
+.admin-npc-skin-select {
+	width: 100%;
+	text-align: center;
+	border: 0;
+}
+
+.admin-npc-avatar-select {
+	width: 100%;
+	text-align: center;
+	border: 0;
+}
+
+.admin-npc-main-settings {
+	display: flex;
+	flex-wrap: wrap;
+	width: 60%;
+	height: 100%;
+}
+
+.admin-npc-main-settings-block {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: calc((100% - 5px)/5);
+	height: 50%;
+}
+
+.admin-npc-main-settings-block-input {
+	width: 80%;
+	text-align: center;
+}
+
+.admin-npc-bottom-menu {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: center;
+	width: calc(50% - 1px);
+	height: 75%;
+}
+
+.admin-npc-drop-categories {
+	display: flex;
+	width: 100%;
+	height: 20%;
+}
+
+.admin-npc-drop-type {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: calc(50% - 1px);
+	height: 100%;
+}
+
+.admin-npc-drop-items {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: 100%;
+	height: 80%;
+}
+
+.admin-npc-drop-items-block {
+	display: flex;
+	flex-wrap: warp;
+	justify-content: space-evenly;
+	align-items: center;
+	width: 100%;
+	height: 9%;
+}
+
+.admin-npc-drop-img {
+	height: 90%;
+}
+
+.admin-npc-input-range {
+	width: 50%;
+}
+
+.admin-npc-input-value {
+	width: 32px;
+}
+
+/* ===== Диалог ===== */
+
+.dialog-window-div {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: 100%;
+	height: 100%;
+	background: rgba(0,0,0,.7);
+}
+
+.dialog-window-avatar {
+	height: 20%;
+}
+
+.dialog-window-text {
+	color: white;
+	width: 90%;
+	height: 30%;
+	text-align: center;
+	border-radius: 20px 20px 0 0;
+	background: rgba(0,0,0,.9);
+	overflow-y: auto;
+}
+
+.dialog-window-text span {
+	display: block;
+	text-decoration: underline;
+}
+
+.dialog-window-options-div {
+	display: table;
+	width: 90%;
+}
+
+.dialog-window-options-span {
+	color: white;
+	display: table-caption;
+	text-align: center;
+	padding: 10px;
+	background: rgba(33,33,33,.9);
+	transition: linear .3s;
+}
+.dialog-window-options-span:hover {
+	color: #D0904C;
+	background: rgba(44,44,44,.95);
+}
+.dialog-window-options-span:last-child {
+	border-radius: 0 0 20px 20px;
+}
+
+/* ===== Редактирование предметов ===== */
+
+.admin-items-interaction-div {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: calc(100% - 50px);
+	overflow-y: auto;
+}
+
+.admin-items-block {
+	display: flex;
+	justify-content: flex-start;
+	align-items: center;
+	width: 100%;
+	height: 10%;
+	border-bottom: 2px solid rgb(71,64,57);
+}
+.admin-items-block:hover {
+	background: rgba(208, 144, 76, .5);
+}
+.admin-items-block-selected {
+	background: rgb(208, 144, 76);
+}
+
+.admin-items-block-img {
+	height: 90%;
+	margin: 0 5px;
+}
+
+.admin-items-block-name-span {
+	font-size: 18px;
+}
+
+.admin-items-div-img {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	width: 30%;
+	height: 100%;
+	border-bottom: 1px solid rgb(76, 69, 63);
+	border-right: 1px solid rgb(76, 69, 63);
+}
+
+.admin-items-img {
+	height: 80%;
+}
+
+.admin-items-main-settings {
+	display: flex;
+	flex-wrap: wrap;
+	width: 70%;
+	height: 100%;
+	border-bottom: 1px solid rgb(76, 69, 63);
+}
+
+.admin-items-properties {
+	display: flex;
+	flex-wrap: wrap;
+	width: 100%;
+	height: 55%;
+	border-bottom: 1px solid rgb(76, 69, 63);
+}
+
+.admin-items-properties-block {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: calc(20% - 1px);
+}
+
+.admin-items-description {
+	width: 100%;
+	height: calc(18% - 2px);
+}
+
+.admin-items-change-image-div {
+	position: absolute;
+	top: 25%;
+	left: 25%;
+	width: 50%;
+	height: 50%;
+	overflow-y: auto;
+	background: rgba(0, 0, 0, .8);
+}
+
+.admin-items-change-image-div-block {
+	width: 100%;
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.admin-items-change-image-close {
+	position: fixed;
+	top: 75%;
+	left: 25%;
+	width: 50%;
+	height: 50px;
+}
+
+.admin-items-change-image-div-span {
+	width: 100%;
+	height: 50px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, .7);
+}
+
+.admin-items-change-image-block {
+	width: 10%;
+	height: 10%;
+	transition: linear .5s
+}
+.admin-items-change-image-block:hover {
+	background: rgba(208, 144, 76, .7);
+}
+
+.admin-items-change-image-img {
+	width: 50%;
+}
+
+/* ===== Редактирование комплектов выпадения предметов ===== */
+
+.admin-set-items-block {
+	display: flex;
+	width: 100%;
+	height: 10%;
+	border-bottom: 1px solid rgb(76, 69, 63);
+}
+
+.admin-set-items-inner-block {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 100%;
+}
+
+/* ===== Анимации ===== */
+
+@-moz-keyframes spin {
+	30% { 
+		-moz-transform: rotate(15deg); 
+	} 
+	60% { 
+		-moz-transform: rotate(-15deg); 
+	} 
+	100% { 
+		-moz-transform: rotate(0deg); 
+	} 
+}
+
+@-webkit-keyframes spin { 
+	30% { 
+		-webkit-transform: rotate(15deg); 
+	}
+	60% { 
+		-webkit-transform: rotate(-15deg); 
+	}
+	100% { 
+		-webkit-transform: rotate(0deg); 
+	} 
+}
+
+@keyframes spin { 
+	30% { 
+		-webkit-transform: rotate(15deg); 
+		transform:rotate(15deg); 
+	} 
+	60% { 
+		-webkit-transform: rotate(-15deg); 
+		transform:rotate(-15deg); 
+	} 
+	100% { 
+		-webkit-transform: rotate(0deg); 
+		transform:rotate(0deg); 
+	} 
+}
+
+/* ===================== */
+/* ===== GUI в бою ===== */
+/* ===================== */
+
+/* ===== Окно ходов ===== */
+
+.div-turns {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	display: flex;
+	width: 100%;
+	height: 12%;
+	background: rgba(0,0,0,.5);
+}
+
+.img-turns {
+	opacity: 1;
+	height: 100%;
+	transition-property: transform opacity;
+  transition-duration: .4s;
+}
+.img-turns:before {
+  font-size: 22px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.img-turns.hide {
+  transform: scale(0);
+  opacity: 0;
+  transition-property: transform opacity;
+  transition-duration: .4s;
+}
+
+.img-turns-hidden {
+	opacity: 0;
+	transition: 1s;
+}
+
+/* ===== Активная панель в бою ===== */
+
+.div-active-bar-fight {
+	position: absolute;
+	right: 0;
+	bottom: 12%;
+	height: 12%;
+}
+
+.img-active-bar {
+	height: 100%;
+	margin-left: 5px;
+}
+.img-active-bar:hover {
+	animation: spin .2s linear;
+}
+
+.div-abilities-book {
+	position: absolute;
+  top: 25%;
+  left: 30%;
+	width: 40%;
+  height: 50%;
+}
+
+.div-abilities-book-inside {
+	display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+	overflow-y: scroll;
+	height: calc(100% - 2vw - 4px);
+}
+
+.div-in-abilities-book {
+	display: block;
+	width: 10%;
+	text-align: center;
+}
+
+.img-in-abilities-book {
+	width: 90%;
+	object-fit: contain;
+}
+
+.img-mana-in-abilities-book {
+	height: 16px;
+	margin-right: 2px;
+	vertical-align: middle;
+}
+
+/* ===== Окно атаки/защиты и скиллов ===== */
+
+.div-attack {
+	position: absolute;
+	bottom: 15%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	height: 8%;
+	display: inline-flex;
+}
+
+.img-attack {
+	height: 100%;
+	transition: height linear .2s;
+}
+.img-attack:hover {
+	height: 110%;
+	transition: height linear .2s;
+}
+
+/* ===== Информация (ХП, Мана, Имя) ===== */
+
+.div-fight-unit-frame-monstr {
+	position: absolute;
+	left: 0;
+	top: 0;
+	display: flex;
+	width: 40%;
+	height: 20%;
+}
+
+.div-fight-unit-frame-player {
+	position: absolute;
+	right: 0;
+	top: 0;
+	display: flex;
+	justify-content: flex-end;
+	width: 40%;
+	height: 20%;
+}
+
+.div-fight-unit-frame {
+	background: rgba(0,0,0,.5);
+	display: flex;
+	flex-direction: column;
+	width: 20%;
+	margin: 5px;
+}
+
+.img-fight-unit-frame {
+	overflow: hidden;
+	border-radius: 100%;
+	object-fit: contain;
+}
+
+.hp-fight-unit-frame {
+	margin: 5px;
+	background: linear-gradient(to right, red var(--hp, 100%), transparent 0);
+	text-align: center;
+}
+
+.mp-fight-unit-frame {
+	margin: 5px;
+	background: linear-gradient(to right, skyblue var(--mp, 100%), transparent 0);
+	text-align: center;
+}
+
+/* ============================== */
+/* ===== Система оповещения ===== */
+/* ============================== */
+
+.notif-game-main-div {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	background: rgba(0,0,0,.7);
+	z-index: 99999;
+}
+
+.notif-game-title {
+	font-size: 26px;
+}
+
+.notif-game-title-img {
+	width: 50%;
+	margin-top: -3%;
+	margin-bottom: -7%;
+}
+
+.notif-game-text-div {
+	width: 50%;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+}
+
+.notif-game-title-close {
+	font-size: 18px;
+	margin-top: 20px;
+	color: #D0904C;
+}
+
+.notif-game-buttons-div {
+	width: 50%;
+	display: flex;
+	justify-content: space-between;
+	margin-top: 20px;
+}
+
+.notif-game-button {
+  padding: 10px 25px;
+  border: 2px solid #000;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  color: #D0904C;
+}
+.notif-game-button:after {
+  position: absolute;
+  content: " ";
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  transition: all 0.3s ease;
+  -webkit-transform: scale(.1);
+  transform: scale(.1);
+}
+.notif-game-button:hover {
+  color: #fff;
+}
+
+.notif-game-button-accept {
+	background: rgba(0, 100, 0, .7);
+}
+.notif-game-button-accept:hover:after {
+  background: darkgreen;
+  -webkit-transform: scale(1);
+  transform: scale(1);
+}
+
+.notif-game-button-decline {
+	background: rgba(139, 0, 0, .7);
+}
+.notif-game-button-decline:hover:after {
+  background: darkred;
+  -webkit-transform: scale(1);
+  transform: scale(1);
+}

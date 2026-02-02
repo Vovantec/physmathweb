@@ -15,8 +15,7 @@ model User {
   photoUrl   String?
   points     Int      @default(0)
   isAdmin    Boolean  @default(false)
-  
-  // ВОТ ЭТО ПОЛЕ БЫЛО ПРОПУЩЕНО:
+  gameData   String?  @default("{}")
   attempts   HomeworkAttempt[] 
 }
 
