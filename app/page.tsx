@@ -56,10 +56,13 @@ export default function Home() {
   }, []);
 
   const handleAuth = (userData: any) => {
+      // 1. Сохраняем весь объект пользователя для страницы /game
+      localStorage.setItem('user', JSON.stringify(userData)); 
+
+      // 2. Сохраняем отдельные поля для текущей страницы (оставьте как есть для совместимости)
       localStorage.setItem('user_id', userData.id);
       if (userData.name) localStorage.setItem('user_name', userData.name);
       if (userData.photo) localStorage.setItem('user_photo', userData.photo);
-      // Сохраняем статус админа
       localStorage.setItem('user_is_admin', userData.isAdmin ? 'true' : 'false');
       
       setUser(userData);

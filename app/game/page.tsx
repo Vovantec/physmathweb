@@ -29,9 +29,13 @@ export default function GamePage() {
         }
 
         const user = JSON.parse(storedUser);
-        // В идеале использовать токен, но пока ID как заглушка
-        const token = user.telegramId ? user.telegramId.toString() : "guest"; 
+        
+        // Берем telegramId, а если его нет (или он назван иначе) - берем id
+        const token = user.telegramId 
+            ? user.telegramId.toString() 
+            : user.id.toString();
 
+        // 2. Подключаемся к серверу
         const gameRoom = await gameNetwork.connect(token);
         setRoom(gameRoom);
         
