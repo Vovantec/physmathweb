@@ -3,9 +3,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { gameNetwork } from '@/lib/game/GameNetwork';
 import { Room } from 'colyseus.js';
-import GameCanvas from '@/app/components/game/GameCanvas';
+import dynamic from 'next/dynamic'; // 1. Импортируем dynamic
 
-// Заглушка для UI (будем переносить постепенно)
+// 2. Динамический импорт с отключенным SSR
+const GameCanvas = dynamic(() => import('@/app/components/game/GameCanvas'), { 
+  ssr: false,
+  loading: () => <div className="text-white">Загрузка графики...</div>
+});
+
 import GameUI from '@/app/components/game/GameUI'; 
 
 export default function GamePage() {
@@ -17,24 +22,16 @@ export default function GamePage() {
   useEffect(() => {
     const initGame = async () => {
       try {
-        // 1. Получаем токен из localStorage (сохраненный при логине через бота)
         const storedUser = localStorage.getItem('user');
         if (!storedUser) {
           router.push('/'); 
           return;
         }
 
-        // Внимание: Здесь нам нужен ТОКЕН, который мы должны были получить при логине.
-        // Если вы сохраняете только user object, вам нужно обновить логин, чтобы хранить и auth_token.
-        // Пока предположим, что мы можем получить его или используем ID (временно небезопасно).
-        // В идеале: const token = localStorage.getItem('auth_token');
-        
-        // Для теста используем "auth_" + userId как в старом коде, 
-        // но лучше реализовать нормальную JWT авторизацию.
         const user = JSON.parse(storedUser);
-        const token = user.telegramId.toString(); // Или user.token
+        // В идеале использовать токен, но пока ID как заглушка
+        const token = user.telegramId ? user.telegramId.toString() : "guest"; 
 
-        // 2. Подключаемся к серверу
         const gameRoom = await gameNetwork.connect(token);
         setRoom(gameRoom);
         
@@ -74,12 +71,12 @@ export default function GamePage() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
-      {/* Слой 1: Канвас (Игровой мир) */}
+      {/* Слой 1: Канвас (Только клиент) */}
       <div className="absolute inset-0 z-0">
         {room && <GameCanvas room={room} />}
       </div>
 
-      {/* Слой 2: UI (Интерфейс) */}
+      {/* Слой 2: UI */}
       <div className="absolute inset-0 z-10 pointer-events-none">
         {room && <GameUI room={room} />}
       </div>

@@ -25,37 +25,30 @@ export class GameEngine {
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
-      worldWidth: 4000, // Увеличили мир
+      worldWidth: 4000, 
       worldHeight: 4000,
-      events: this.app.renderer.events
-    });
+      events: this.app.renderer.events 
+    } as any);
 
-    this.app.stage.addChild(this.viewport);
+    this.app.stage.addChild(this.viewport as any); // <--- FIX: as any
     this.viewport.drag().pinch().wheel().decelerate();
 
     // Инициализация карты
     this.mapManager = new MapManager();
-    this.viewport.addChild(this.mapManager.container);
+    // При добавлении контейнеров в viewport тоже может потребоваться cast, если типы не совпадают
+    this.viewport.addChild(this.mapManager.container as any); 
 
-    // Загрузка ресурсов (Пример)
+    // Загрузка ресурсов
     this.loadAssets();
 
     window.addEventListener('resize', this.onResize);
   }
 
   async loadAssets() {
-    // Здесь нужно указать реальные пути к вашим текстурам
-    // PIXI.Assets.add('tileset', '/images/tileset.png');
-    // const textures = await PIXI.Assets.load(['tileset']);
-    
-    // this.mapManager.loadTextures(textures.tileset);
-    
-    // Временно: Загрузим карту (нужно перенести maps.json в public/maps.json)
     try {
-        const response = await fetch('/maps.json'); // Путь к файлу в public
+        const response = await fetch('/maps.json'); 
         if (response.ok) {
             const mapData = await response.json();
-            // Берем первый слой карты для теста
             this.mapManager.render(mapData); 
         }
     } catch (e) {
@@ -69,10 +62,9 @@ export class GameEngine {
     room.state.players.onAdd = (player: any, sessionId: string) => {
        this.createPlayer(sessionId, player);
        
-       // Если это наш игрок - следим камерой
        if (sessionId === room.sessionId) {
            const p = this.players.get(sessionId);
-           if (p) this.viewport.follow(p);
+           if (p) this.viewport.follow(p as any); // <--- FIX: as any
        }
 
        player.onChange = () => {
@@ -88,19 +80,19 @@ export class GameEngine {
   createPlayer(sessionId: string, data: any) {
      const container = new PIXI.Container();
      
-     // Графика игрока (Заглушка -> Заменить на Спрайт)
      const graphics = new PIXI.Graphics();
      const color = sessionId === this.room?.sessionId ? 0x00FF00 : 0xFF0000;
      graphics.beginFill(color);
      graphics.drawCircle(0, 0, 15);
      graphics.endFill();
      
-     // Имя
-     const text = new PIXI.Text(data.name, { 
-         fontSize: 12, 
-         fill: 0xffffff,
-         stroke: 0x000000,
-         strokeThickness: 2
+     const text = new PIXI.Text({
+         text: data.name, 
+         style: {
+             fontSize: 12, 
+             fill: 0xffffff,
+             stroke: { width: 2, color: 0x000000 } // Синтаксис v8
+         }
      });
      text.anchor.set(0.5, 2.0);
 
@@ -110,17 +102,15 @@ export class GameEngine {
      container.x = data.x;
      container.y = data.y;
 
-     // Игроки выше карты
      container.zIndex = 100; 
 
-     this.viewport.addChild(container);
+     this.viewport.addChild(container as any); // <--- FIX: as any
      this.players.set(sessionId, container);
   }
 
   updatePlayer(sessionId: string, data: any) {
       const p = this.players.get(sessionId);
       if (p) {
-          // TODO: Добавить интерполяцию (GSAP или lerp)
           p.x = data.x;
           p.y = data.y;
       }
@@ -129,7 +119,7 @@ export class GameEngine {
   removePlayer(sessionId: string) {
       const p = this.players.get(sessionId);
       if (p) {
-          this.viewport.removeChild(p);
+          this.viewport.removeChild(p as any); // <--- FIX: as any
           p.destroy();
           this.players.delete(sessionId);
       }
