@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 // GET: Фронтенд опрашивает статус токена
 export async function GET(request: Request) {
@@ -24,16 +25,38 @@ export async function GET(request: Request) {
     // Удаляем использованный токен
     await prisma.authCode.delete({ where: { token } });
 
-    return NextResponse.json({ 
+    if (!user) return NextResponse.json({ status: 'ERROR', message: 'User not found' });
+
+    // === ГЕНЕРАЦИЯ КУКИ (НОВОЕ) ===
+    const jwtSecret = process.env.BOT_TOKEN || 'secret';
+    const sessionToken = jwt.sign(
+      { userId: user.telegramId.toString() }, 
+      jwtSecret, 
+      { expiresIn: '7d' }
+    );
+
+    // Формируем ответ
+    const response = NextResponse.json({ 
       status: 'SUCCESS', 
       user: {
-        id: user?.id.toString(),
-        telegramId: user?.telegramId.toString(),
-        name: user?.firstName || user?.username,
-        photo: user?.photoUrl,
-        isAdmin: user?.isAdmin // <--- ВАЖНО: Возвращаем статус админа на фронтенд
+        id: user.id.toString(),
+        telegramId: user.telegramId.toString(),
+        name: user.firstName || user.username,
+        photo: user.photoUrl,
+        isAdmin: user.isAdmin
       }
     });
+
+    // Устанавливаем куку
+    response.cookies.set('session_token', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 7 дней
+    });
+
+    return response;
   }
 
   return NextResponse.json({ status: 'PENDING' });
@@ -41,8 +64,6 @@ export async function GET(request: Request) {
 
 // POST: Создание нового токена для входа
 export async function POST() {
-  // Используем crypto.randomUUID (доступно в Node.js v14.17.0+ и глобально в v15.6.0+, либо v19+)
-  // Если у вас старая версия Node, используйте uuidv4
   const token = crypto.randomUUID(); 
   
   await prisma.authCode.create({
