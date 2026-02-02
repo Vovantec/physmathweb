@@ -8,27 +8,27 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
+  const userIdStr = searchParams.get('userId');
 
-  if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+  if (!userIdStr) return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
 
   try {
-    // Ищем активного персонажа пользователя
-    // Предполагаем, что связь User -> Character уже настроена или мы ищем по login
-    // Для простоты найдем персонажа, связанного с User ID
+    // 1. Преобразуем ID в число (FIX)
+    const userId = parseInt(userIdStr);
     
-    // ВАЖНО: Адаптируйте запрос под вашу схему. 
-    // Если у User есть relation "characters":
+    if (isNaN(userId)) {
+        return NextResponse.json({ error: 'Invalid userId format' }, { status: 400 });
+    }
+
+    // 2. Ищем пользователя по ID
     const user = await prisma.user.findUnique({
-        where: { id: userId }, // или telegramId, если вы используете BigInt
-        include: {
-            // Предполагаем, что у вас есть модель Character
-            // Если нет, нужно будет создать или адаптировать запрос
-            characters: {
-                where: { active: true },
-                take: 1
-            }
+      where: { id: userId }, 
+      include: {
+        characters: {
+            where: { active: true },
+            take: 1
         }
+      }
     });
 
     if (!user || !user.characters || user.characters.length === 0) {
@@ -37,7 +37,14 @@ export async function GET(request: Request) {
 
     const character = user.characters[0];
 
-    return NextResponse.json({ character });
+    // 3. Сериализация BigInt (Prisma возвращает BigInt, который JSON.stringify не любит)
+    // Преобразуем userId (BigInt) в строку перед отправкой
+    const safeCharacter = {
+        ...character,
+        userId: character.userId.toString() 
+    };
+
+    return NextResponse.json({ character: safeCharacter });
 
   } catch (e) {
     console.error("Character API Error:", e);
