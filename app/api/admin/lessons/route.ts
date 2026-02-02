@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { checkAdminAuth } from '@/lib/admin-auth';
 
 export async function POST(request: Request) {
-  if (!await checkAdminAuth(request)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!await checkAdminAuth()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
     const { title, videoUrl, taskId, pdfId } = await request.json();

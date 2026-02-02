@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-    const auth = await checkAdminAuth(request);
+    const auth = await checkAdminAuth();
     if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const courses = await prisma.course.findMany({
