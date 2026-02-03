@@ -8,43 +8,40 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const userIdStr = searchParams.get('userId');
+  const userIdStr = searchParams.get('userId'); // Получаем как строку
 
   if (!userIdStr) return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
 
   try {
-    // 1. Преобразуем ID в число (FIX)
+    // ПРЕОБРАЗУЕМ В ЧИСЛО (FIX)
     const userId = parseInt(userIdStr);
     
     if (isNaN(userId)) {
-        return NextResponse.json({ error: 'Invalid userId format' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
     }
 
-    // 2. Ищем пользователя по ID
     const user = await prisma.user.findUnique({
-      where: { id: userId }, 
-      include: {
-        characters: {
-            where: { active: true },
-            take: 1
+        where: { id: userId }, // Теперь здесь число, и Prisma довольна
+        include: {
+            characters: {
+                where: { active: true },
+                take: 1
+            }
         }
-      }
     });
 
     if (!user || !user.characters || user.characters.length === 0) {
         return NextResponse.json({ error: 'Character not found' }, { status: 404 });
     }
 
-    const character = user.characters[0];
-
-    // 3. Сериализация BigInt (Prisma возвращает BigInt, который JSON.stringify не любит)
-    // Преобразуем userId (BigInt) в строку перед отправкой
-    const safeCharacter = {
-        ...character,
-        userId: character.userId.toString() 
+    // Prisma возвращает BigInt, который нельзя сразу отправить в JSON
+    // Преобразуем userId (BigInt) в строку
+    const character = {
+        ...user.characters[0],
+        userId: user.characters[0].userId.toString()
     };
 
-    return NextResponse.json({ character: safeCharacter });
+    return NextResponse.json({ character });
 
   } catch (e) {
     console.error("Character API Error:", e);
