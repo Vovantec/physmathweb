@@ -14,27 +14,18 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   useEffect(() => {
     if (!canvasRef.current || engineRef.current) return;
 
-    // 1. Создаем экземпляр
-    const engine = new GameEngine();
+    // 1. Инициализируем движок (теперь синхронно)
+    const engine = new GameEngine(canvasRef.current);
     engineRef.current = engine;
 
-    // 2. Асинхронно инициализируем
-    const initGame = async () => {
-        if (!canvasRef.current) return;
-        
-        await engine.init(canvasRef.current);
+    // 2. Подключаем к комнате
+    engine.attachRoom(room);
 
-        // 3. Подключаем к комнате только после готовности движка
-        engine.attachRoom(room);
-
-        // 4. Логика ввода
-        engine.viewport.on('clicked', (e) => {
-            const world = e.world;
-            room.send("move", { x: world.x, y: world.y });
-        });
-    };
-
-    initGame();
+    // 3. Отправка кликов
+    engine.viewport.on('clicked', (e) => {
+        const world = e.world;
+        room.send("move", { x: world.x, y: world.y });
+    });
 
     return () => {
       engine.destroy();
