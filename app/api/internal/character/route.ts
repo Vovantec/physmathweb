@@ -8,20 +8,20 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const userIdStr = searchParams.get('userId'); // Получаем как строку
+  const userIdStr = searchParams.get('userId');
 
   if (!userIdStr) return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
 
   try {
-    // ПРЕОБРАЗУЕМ В ЧИСЛО (FIX)
+    // === ИСПРАВЛЕНИЕ: Преобразуем строку в число ===
     const userId = parseInt(userIdStr);
     
     if (isNaN(userId)) {
-        return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid userId format' }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
-        where: { id: userId }, // Теперь здесь число, и Prisma довольна
+        where: { id: userId }, // Теперь здесь число, и ошибки не будет
         include: {
             characters: {
                 where: { active: true },
@@ -34,8 +34,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Character not found' }, { status: 404 });
     }
 
-    // Prisma возвращает BigInt, который нельзя сразу отправить в JSON
-    // Преобразуем userId (BigInt) в строку
+    // Prisma возвращает BigInt, который JSON не понимает.
+    // Преобразуем userId (BigInt) в строку перед отправкой.
     const character = {
         ...user.characters[0],
         userId: user.characters[0].userId.toString()
