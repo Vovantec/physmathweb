@@ -4,16 +4,25 @@ import { Room } from 'colyseus.js';
 import { MapManager } from './MapManager';
 
 export class GameEngine {
-  app: PIXI.Application;
-  viewport: Viewport;
+  // Помечаем, что app будет инициализировано позже
+  app!: PIXI.Application;
+  viewport!: Viewport;
   room: Room | null = null;
-  mapManager: MapManager;
+  mapManager!: MapManager;
   
   players: Map<string, PIXI.Container> = new Map();
 
-  constructor(canvas: HTMLCanvasElement) {
-    this.app = new PIXI.Application({
-      view: canvas,
+  constructor() {
+    // Конструктор теперь пустой или выполняет только базовую настройку полей
+  }
+
+  // Создаем асинхронный метод инициализации
+  async init(canvas: HTMLCanvasElement) {
+    this.app = new PIXI.Application();
+
+    // В PixiJS v8 инициализация асинхронна
+    await this.app.init({
+      canvas: canvas, // Используем свойство canvas вместо view
       width: window.innerWidth,
       height: window.innerHeight,
       backgroundColor: 0x1099bb,
@@ -21,25 +30,24 @@ export class GameEngine {
       autoDensity: true,
     });
 
-    // Инициализация камеры
+    // Теперь this.app.renderer инициализирован и events доступны
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
       worldWidth: 4000, 
       worldHeight: 4000,
-      events: this.app.renderer.events 
+      events: this.app.renderer.events // Ошибка исчезнет здесь
     } as any);
 
-    this.app.stage.addChild(this.viewport as any); // <--- FIX: as any
+    this.app.stage.addChild(this.viewport as any);
     this.viewport.drag().pinch().wheel().decelerate();
 
     // Инициализация карты
     this.mapManager = new MapManager();
-    // При добавлении контейнеров в viewport тоже может потребоваться cast, если типы не совпадают
-    this.viewport.addChild(this.mapManager.container as any); 
+    this.viewport.addChild(this.mapManager.container as any);
 
     // Загрузка ресурсов
-    this.loadAssets();
+    await this.loadAssets();
 
     window.addEventListener('resize', this.onResize);
   }
@@ -64,7 +72,7 @@ export class GameEngine {
        
        if (sessionId === room.sessionId) {
            const p = this.players.get(sessionId);
-           if (p) this.viewport.follow(p as any); // <--- FIX: as any
+           if (p) this.viewport.follow(p as any);
        }
 
        player.onChange = () => {
@@ -82,16 +90,15 @@ export class GameEngine {
      
      const graphics = new PIXI.Graphics();
      const color = sessionId === this.room?.sessionId ? 0x00FF00 : 0xFF0000;
-     graphics.beginFill(color);
-     graphics.drawCircle(0, 0, 15);
-     graphics.endFill();
+     graphics.circle(0, 0, 15); // В v8 drawCircle -> circle, хотя drawCircle тоже поддерживается через alias
+     graphics.fill(color);      // В v8 beginFill/endFill -> fill
      
      const text = new PIXI.Text({
          text: data.name, 
          style: {
              fontSize: 12, 
              fill: 0xffffff,
-             stroke: { width: 2, color: 0x000000 } // Синтаксис v8
+             stroke: { width: 2, color: 0x000000 }
          }
      });
      text.anchor.set(0.5, 2.0);
@@ -104,7 +111,7 @@ export class GameEngine {
 
      container.zIndex = 100; 
 
-     this.viewport.addChild(container as any); // <--- FIX: as any
+     this.viewport.addChild(container as any);
      this.players.set(sessionId, container);
   }
 
@@ -119,19 +126,23 @@ export class GameEngine {
   removePlayer(sessionId: string) {
       const p = this.players.get(sessionId);
       if (p) {
-          this.viewport.removeChild(p as any); // <--- FIX: as any
+          this.viewport.removeChild(p as any);
           p.destroy();
           this.players.delete(sessionId);
       }
   }
 
   onResize = () => {
+    if (!this.app || !this.app.renderer) return;
     this.app.renderer.resize(window.innerWidth, window.innerHeight);
     this.viewport.resize(window.innerWidth, window.innerHeight);
   }
 
   destroy() {
     window.removeEventListener('resize', this.onResize);
-    this.app.destroy(true, { children: true });
+    // Проверяем инициализацию перед уничтожением
+    if (this.app) {
+        this.app.destroy(true, { children: true });
+    }
   }
 }
