@@ -22,21 +22,24 @@ export class GameEngine {
       autoDensity: true,
     });
 
-    // Инициализация камеры (pixi-viewport v5 совместим с Pixi v7)
+    // Инициализация камеры
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
       worldWidth: 4000, 
       worldHeight: 4000,
-      interaction: this.app.renderer.plugins.interaction // <--- Для v7 используем interaction плагин
+      interaction: this.app.renderer.plugins.interaction // Плагин взаимодействия для v7
     });
 
-    this.app.stage.addChild(this.viewport);
+    // === ИСПРАВЛЕНИЕ: Добавляем 'as any' чтобы успокоить TypeScript ===
+    this.app.stage.addChild(this.viewport as any);
+    
     this.viewport.drag().pinch().wheel().decelerate();
 
     // Инициализация карты
     this.mapManager = new MapManager();
-    this.viewport.addChild(this.mapManager.container);
+    // Здесь тоже лучше добавить cast на всякий случай
+    this.viewport.addChild(this.mapManager.container as any);
 
     // Загрузка ресурсов
     this.loadAssets();
@@ -88,7 +91,7 @@ export class GameEngine {
      graphics.drawCircle(0, 0, 15);
      graphics.endFill();
      
-     const text = new PIXI.Text(data.name, { // В v7 параметры передаются иначе, но этот вариант тоже работает
+     const text = new PIXI.Text(data.name, { 
          fontSize: 12, 
          fill: 0xffffff,
          stroke: 0x000000,
@@ -104,7 +107,8 @@ export class GameEngine {
 
      container.zIndex = 100; 
 
-     this.viewport.addChild(container);
+     // Cast при добавлении игрока во viewport
+     this.viewport.addChild(container as any);
      this.players.set(sessionId, container);
   }
 
@@ -119,7 +123,8 @@ export class GameEngine {
   removePlayer(sessionId: string) {
       const p = this.players.get(sessionId);
       if (p) {
-          this.viewport.removeChild(p);
+          // Cast при удалении
+          this.viewport.removeChild(p as any);
           p.destroy();
           this.players.delete(sessionId);
       }
