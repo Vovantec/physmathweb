@@ -9,16 +9,13 @@ export class GameEngine {
   room: Room | null = null;
   mapManager!: MapManager;
   
-  // Кэш текстур персонажей
-  characterTextures: Record<number, PIXI.Texture> = {};
-  
   players: Map<string, PIXI.Container> = new Map();
 
-  constructor() { }
+  constructor() {}
 
   async init(canvas: HTMLCanvasElement) {
-    // 1. Инициализация PixiJS v8
     this.app = new PIXI.Application();
+    
     await this.app.init({
       canvas: canvas,
       width: window.innerWidth,
@@ -29,43 +26,29 @@ export class GameEngine {
       preference: 'webgl',
     });
 
-    // 2. Инициализация камеры (pixi-viewport v6+)
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
       worldWidth: 4000, 
       worldHeight: 4000,
-      events: this.app.renderer.events // Исправление для v8
+      events: this.app.renderer.events
     });
 
     this.app.stage.addChild(this.viewport);
     this.viewport.drag().pinch().wheel().decelerate();
 
-    // 3. Загрузка ресурсов (ВАЖНО!)
-    await this.loadAssets();
+    // Загружаем только персонажей (карта будет грузиться динамически)
+    await this.loadCharacterAssets();
 
-    // 4. Инициализация карты
     this.mapManager = new MapManager();
     this.viewport.addChild(this.mapManager.container);
-    
-    // Передаем загруженный тайлсет в менеджер карт
-    // Предполагаем, что у вас есть общий tileset.png. 
-    // Если его нет, создайте его или используйте атлас.
-    try {
-        const tileset = PIXI.Assets.get('tileset');
-        if (tileset) {
-            this.mapManager.loadTextures(tileset);
-        }
-    } catch (e) { console.warn("Tileset texture not found"); }
 
     window.addEventListener('resize', this.onResize);
   }
 
-  async loadAssets() {
-    // Здесь мы загружаем графику.
-    // Если файлов нет, Pixi выдаст ошибку, но игра не упадет.
+  async loadCharacterAssets() {
+    // Пути как в Legacy коде
     const assets = [
-        { alias: 'tileset', src: '/images/tileset.png' },
         { alias: 'warrior', src: '/images/character_sprite/warrior.png' },
         { alias: 'knight', src: '/images/character_sprite/knight.png' },
         { alias: 'archer', src: '/images/character_sprite/archer.png' },
@@ -76,23 +59,22 @@ export class GameEngine {
     try {
         await PIXI.Assets.load(assets);
     } catch (e) {
-        console.error("Ошибка загрузки ассетов:", e);
+        console.error("Ошибка загрузки персонажей:", e);
     }
   }
 
   attachRoom(room: Room) {
     this.room = room;
 
-    // 1. Слушаем приход карты
+    // 1. Принимаем карту и рендерим её
     room.onMessage("mapData", (mapData: any[][]) => {
-        console.log("Map data received, rendering...");
+        console.log("Получена карта, начинаем рендер...");
         this.mapManager.render(mapData);
     });
 
-    // 2. Запрашиваем карту (ТЕПЕРЬ БЕЗОПАСНО, т.к. слушатель выше уже готов)
+    // 2. Запрашиваем карту только когда готовы
     room.send("requestMap");
 
-    // Обработка игроков
     room.state.players.onAdd = (player: any, sessionId: string) => {
        this.createPlayer(sessionId, player);
        
@@ -114,54 +96,49 @@ export class GameEngine {
   createPlayer(sessionId: string, data: any) {
      const container = new PIXI.Container();
      
-     // Попытка создать спрайт вместо кружка
-     let sprite: PIXI.Sprite | PIXI.Graphics;
-     
+     // Выбор спрайта
      const classNames = ['warrior', 'knight', 'archer', 'mage', 'priest'];
-     const skinName = classNames[data.skin] || 'warrior';
+     // В Legacy 'skin' был индексом в массиве
+     const skinIndex = data.skin !== undefined ? data.skin : 0; 
+     const skinName = classNames[skinIndex] || 'warrior';
      
      try {
-         // Пытаемся взять текстуру из загруженных
          const texture = PIXI.Assets.get(skinName);
-         if (texture) {
-             // Если это спрайтшит (как в старом коде), нужно вырезать кадр.
-             // Для простоты берем весь кадр или верхний левый квадрат 64x64
-             // В старом коде p=64, Rectangle(0, 10*p, p, p) - standSouth
-             const frameSize = 64;
-             // Создаем текстуру для стояния (примерно как в старом коде)
-             const standTexture = new PIXI.Texture({
-                 source: texture.source,
-                 frame: new PIXI.Rectangle(0, 10 * frameSize, frameSize, frameSize)
-             });
-             
-             sprite = new PIXI.Sprite(standTexture);
-             sprite.anchor.set(0.5);
-             sprite.width = 60; // sizeObj * 1.5 примерно
-             sprite.height = 60;
-         } else {
-             throw new Error("No texture");
-         }
+         // Legacy спрайты - это листы. Берем первый кадр (Stand South)
+         // В main.js: new PIXI.Rectangle(0, 10*64, 64, 64)
+         const frameSize = 64;
+         const standTexture = new PIXI.Texture({
+             source: texture.source,
+             frame: new PIXI.Rectangle(0, 10 * frameSize, frameSize, frameSize)
+         });
+         
+         const sprite = new PIXI.Sprite(standTexture);
+         sprite.anchor.set(0.5);
+         sprite.width = 60; 
+         sprite.height = 60;
+         container.addChild(sprite);
+         
      } catch (e) {
-         // Фолбек на кружок, если текстура не загрузилась
+         // Фолбек - красный круг
          const graphics = new PIXI.Graphics();
-         const color = sessionId === this.room?.sessionId ? 0x00FF00 : 0xFF0000;
          graphics.circle(0, 0, 15);
-         graphics.fill(color);
-         sprite = graphics;
+         graphics.fill({ color: 0xFF0000 });
+         container.addChild(graphics);
      }
 
+     // Имя
      const text = new PIXI.Text({
          text: data.name, 
          style: {
              fontSize: 14, 
              fill: 0xffffff,
              stroke: { width: 3, color: 0x000000 },
-             fontWeight: 'bold'
+             fontWeight: 'bold',
+             fontFamily: 'Arial'
          }
      });
-     text.anchor.set(0.5, 2.5); // Над головой
+     text.anchor.set(0.5, 2.5);
 
-     container.addChild(sprite);
      container.addChild(text);
      
      container.x = data.x;
@@ -175,7 +152,6 @@ export class GameEngine {
   updatePlayer(sessionId: string, data: any) {
       const p = this.players.get(sessionId);
       if (p) {
-          // Плавная интерполяция была бы лучше, но пока телепорт
           p.x = data.x;
           p.y = data.y;
       }
