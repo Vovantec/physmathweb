@@ -3,9 +3,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { gameNetwork } from '@/lib/game/GameNetwork';
 import { Room } from 'colyseus.js';
-import dynamic from 'next/dynamic'; // 1. Импортируем dynamic
+import dynamic from 'next/dynamic';
 
-// 2. Динамический импорт с отключенным SSR
 const GameCanvas = dynamic(() => import('@/app/components/game/GameCanvas'), { 
   ssr: false,
   loading: () => <div className="text-white">Загрузка графики...</div>
@@ -29,19 +28,27 @@ export default function GamePage() {
         }
 
         const user = JSON.parse(storedUser);
-        
-        // Берем telegramId, а если его нет (или он назван иначе) - берем id
-        const token = user.telegramId 
-            ? user.telegramId.toString() 
-            : user.id.toString();
+        const userId = user.telegramId ? user.telegramId.toString() : user.id.toString();
 
-        // 2. Подключаемся к серверу
-        const gameRoom = await gameNetwork.connect(token);
+        // 1. Получаем свежий игровой токен с сайта
+        const response = await fetch('/api/auth/game-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, username: user.username })
+        });
+
+        if (!response.ok) throw new Error("Failed to get game token");
+        
+        const data = await response.json();
+        const gameToken = data.token;
+
+        // 2. Подключаемся к серверу с валидным JWT
+        const gameRoom = await gameNetwork.connect(gameToken);
         setRoom(gameRoom);
         
       } catch (err: any) {
-        console.error(err);
-        setError("Не удалось подключиться к серверу игры. " + err.message);
+        console.error("Game Connection Error:", err);
+        setError(`Ошибка подключения: ${err.message || String(err)}`);
       } finally {
         setLoading(false);
       }
