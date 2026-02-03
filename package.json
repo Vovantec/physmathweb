@@ -15,8 +15,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "colyseus.js": "^0.15.0",
-    "pixi.js": "^7.4.2", 
-    "pixi-viewport": "^5.0.3"
+    "pixi.js": "^8.6.6",
+    "pixi-viewport": "^6.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

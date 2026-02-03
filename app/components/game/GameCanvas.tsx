@@ -14,18 +14,26 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   useEffect(() => {
     if (!canvasRef.current || engineRef.current) return;
 
-    // 1. Инициализируем движок (теперь синхронно)
-    const engine = new GameEngine(canvasRef.current);
+    const engine = new GameEngine();
     engineRef.current = engine;
 
-    // 2. Подключаем к комнате
-    engine.attachRoom(room);
+    const start = async () => {
+        if (!canvasRef.current) return;
+        
+        // Инициализация v8
+        await engine.init(canvasRef.current);
+        
+        // Подключаем комнату после готовности Pixi
+        engine.attachRoom(room);
 
-    // 3. Отправка кликов
-    engine.viewport.on('clicked', (e) => {
-        const world = e.world;
-        room.send("move", { x: world.x, y: world.y });
-    });
+        // Обработка кликов
+        engine.viewport.on('clicked', (e) => {
+            const world = e.world;
+            room.send("move", { x: world.x, y: world.y });
+        });
+    };
+
+    start();
 
     return () => {
       engine.destroy();

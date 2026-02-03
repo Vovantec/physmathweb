@@ -4,68 +4,73 @@ import { Room } from 'colyseus.js';
 import { MapManager } from './MapManager';
 
 export class GameEngine {
-  app: PIXI.Application;
-  viewport: Viewport;
+  app!: PIXI.Application;
+  viewport!: Viewport;
   room: Room | null = null;
-  mapManager: MapManager;
+  mapManager!: MapManager;
   
   players: Map<string, PIXI.Container> = new Map();
 
-  constructor(canvas: HTMLCanvasElement) {
-    // В PixiJS v7 инициализация синхронная
-    this.app = new PIXI.Application({
-      view: canvas,
+  constructor() {
+    // Конструктор пустой, инициализация в init()
+  }
+
+  async init(canvas: HTMLCanvasElement) {
+    // 1. Создаем приложение (v8 style)
+    this.app = new PIXI.Application();
+    
+    await this.app.init({
+      canvas: canvas,
       width: window.innerWidth,
       height: window.innerHeight,
       backgroundColor: 0x1099bb,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
+      preference: 'webgl', // Рекомендуется для v8
     });
 
-    // Инициализация камеры
+    // 2. Инициализируем камеру (pixi-viewport v6)
+    // В v8 нужно обязательно передать events: app.renderer.events
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
       worldWidth: 4000, 
       worldHeight: 4000,
-      interaction: this.app.renderer.plugins.interaction 
+      events: this.app.renderer.events // <--- Исправление ошибки isInteractive
     });
 
-    this.app.stage.addChild(this.viewport as any);
+    this.app.stage.addChild(this.viewport);
+    
+    // Включаем плагины камеры
     this.viewport.drag().pinch().wheel().decelerate();
 
-    // Инициализация карты
+    // 3. Инициализация менеджера карты
     this.mapManager = new MapManager();
-    this.viewport.addChild(this.mapManager.container as any);
-
-    // Загрузка ресурсов
-    this.loadAssets();
+    this.viewport.addChild(this.mapManager.container);
 
     window.addEventListener('resize', this.onResize);
   }
 
-  async loadAssets() {
-    try {
-        const response = await fetch('/maps.json'); 
-        if (response.ok) {
-            const mapData = await response.json();
-            this.mapManager.render(mapData); 
-        }
-    } catch (e) {
-        console.error("Failed to load map:", e);
-    }
-  }
-
   attachRoom(room: Room) {
     this.room = room;
-    
+
+    // === ЗАПРОС КАРТЫ С СЕРВЕРА ===
+    // 1. Слушаем ответ
+    room.onMessage("mapData", (mapData: any[][]) => {
+        console.log("Карта загружена с сервера!");
+        this.mapManager.render(mapData);
+    });
+
+    // 2. Отправляем запрос
+    room.send("requestMap");
+
+    // Обработка игроков
     room.state.players.onAdd = (player: any, sessionId: string) => {
        this.createPlayer(sessionId, player);
        
        if (sessionId === room.sessionId) {
            const p = this.players.get(sessionId);
-           // === ИСПРАВЛЕНИЕ: Добавляем 'as any' для follow ===
-           if (p) this.viewport.follow(p as any);
+           if (p) this.viewport.follow(p);
        }
 
        player.onChange = () => {
@@ -84,15 +89,17 @@ export class GameEngine {
      const graphics = new PIXI.Graphics();
      const color = sessionId === this.room?.sessionId ? 0x00FF00 : 0xFF0000;
      
-     graphics.beginFill(color);
-     graphics.drawCircle(0, 0, 15);
-     graphics.endFill();
+     // Синтаксис v8
+     graphics.circle(0, 0, 15);
+     graphics.fill(color);
      
-     const text = new PIXI.Text(data.name, { 
-         fontSize: 12, 
-         fill: 0xffffff,
-         stroke: 0x000000,
-         strokeThickness: 2
+     const text = new PIXI.Text({
+         text: data.name,
+         style: {
+             fontSize: 12, 
+             fill: 0xffffff,
+             stroke: { width: 2, color: 0x000000 }
+         }
      });
      text.anchor.set(0.5, 2.0);
 
@@ -101,10 +108,9 @@ export class GameEngine {
      
      container.x = data.x;
      container.y = data.y;
-
      container.zIndex = 100; 
 
-     this.viewport.addChild(container as any);
+     this.viewport.addChild(container);
      this.players.set(sessionId, container);
   }
 
@@ -119,19 +125,22 @@ export class GameEngine {
   removePlayer(sessionId: string) {
       const p = this.players.get(sessionId);
       if (p) {
-          this.viewport.removeChild(p as any);
+          this.viewport.removeChild(p);
           p.destroy();
           this.players.delete(sessionId);
       }
   }
 
   onResize = () => {
+    if (!this.app || !this.app.renderer) return;
     this.app.renderer.resize(window.innerWidth, window.innerHeight);
     this.viewport.resize(window.innerWidth, window.innerHeight);
   }
 
   destroy() {
     window.removeEventListener('resize', this.onResize);
-    this.app.destroy(true, { children: true });
+    if (this.app) {
+        this.app.destroy(true, { children: true });
+    }
   }
 }
