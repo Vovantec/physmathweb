@@ -60,12 +60,7 @@ export class MapManager {
         const ty = Math.floor(frameId / cols) * size;
 
         const rect = new PIXI.Rectangle(tx, ty, size, size);
-        
-        // FIX: Синтаксис PixiJS v8
-        const texture = new PIXI.Texture({
-            source: this.textureSheet.source, // В v8 baseTexture -> source
-            frame: rect
-        });
+        const texture = new PIXI.Texture(this.textureSheet.baseTexture, rect);
         
         return new PIXI.Sprite(texture);
     }

@@ -28,17 +28,14 @@ export class GameEngine {
       screenHeight: window.innerHeight,
       worldWidth: 4000, 
       worldHeight: 4000,
-      interaction: this.app.renderer.plugins.interaction // Плагин взаимодействия для v7
+      interaction: this.app.renderer.plugins.interaction 
     });
 
-    // === ИСПРАВЛЕНИЕ: Добавляем 'as any' чтобы успокоить TypeScript ===
     this.app.stage.addChild(this.viewport as any);
-    
     this.viewport.drag().pinch().wheel().decelerate();
 
     // Инициализация карты
     this.mapManager = new MapManager();
-    // Здесь тоже лучше добавить cast на всякий случай
     this.viewport.addChild(this.mapManager.container as any);
 
     // Загрузка ресурсов
@@ -67,7 +64,8 @@ export class GameEngine {
        
        if (sessionId === room.sessionId) {
            const p = this.players.get(sessionId);
-           if (p) this.viewport.follow(p);
+           // === ИСПРАВЛЕНИЕ: Добавляем 'as any' для follow ===
+           if (p) this.viewport.follow(p as any);
        }
 
        player.onChange = () => {
@@ -86,7 +84,6 @@ export class GameEngine {
      const graphics = new PIXI.Graphics();
      const color = sessionId === this.room?.sessionId ? 0x00FF00 : 0xFF0000;
      
-     // Синтаксис PixiJS v7
      graphics.beginFill(color);
      graphics.drawCircle(0, 0, 15);
      graphics.endFill();
@@ -107,7 +104,6 @@ export class GameEngine {
 
      container.zIndex = 100; 
 
-     // Cast при добавлении игрока во viewport
      this.viewport.addChild(container as any);
      this.players.set(sessionId, container);
   }
@@ -123,7 +119,6 @@ export class GameEngine {
   removePlayer(sessionId: string) {
       const p = this.players.get(sessionId);
       if (p) {
-          // Cast при удалении
           this.viewport.removeChild(p as any);
           p.destroy();
           this.players.delete(sessionId);
