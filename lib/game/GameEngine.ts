@@ -9,6 +9,7 @@ export class GameEngine {
   room: Room | null = null;
   mapManager!: MapManager;
   
+  // Храним ссылки на контейнеры игроков
   players: Map<string, PIXI.Container> = new Map();
 
   constructor() {}
@@ -26,28 +27,40 @@ export class GameEngine {
       preference: 'webgl',
     });
 
+    // Создаем камеру (Viewport)
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
-      worldWidth: 4000, 
-      worldHeight: 4000,
-      events: this.app.renderer.events
+      worldWidth: 1000, // Временное значение, обновится при загрузке карты
+      worldHeight: 1000,
+      events: this.app.renderer.events // Важно для обработки кликов Pixi 8
     });
 
     this.app.stage.addChild(this.viewport);
-    this.viewport.drag().pinch().wheel().decelerate();
+    
+    // Включаем сортировку внутри вьюпорта (для Z-Index)
+    this.viewport.sortableChildren = true;
 
-    // Загружаем только персонажей (карта будет грузиться динамически)
+    // Плагины камеры
+    this.viewport
+        .drag()
+        .pinch()
+        .wheel()
+        .decelerate()
+        .clamp({ direction: 'all' }); // Запрещаем улетать за карту
+
+    // Загрузка спрайтов персонажей
     await this.loadCharacterAssets();
 
+    // Инициализация менеджера карты
     this.mapManager = new MapManager();
+    // Добавляем контейнер карты в вьюпорт
     this.viewport.addChild(this.mapManager.container);
 
     window.addEventListener('resize', this.onResize);
   }
 
   async loadCharacterAssets() {
-    // Пути как в Legacy коде
     const assets = [
         { alias: 'warrior', src: '/images/character_sprite/warrior.png' },
         { alias: 'knight', src: '/images/character_sprite/knight.png' },
@@ -66,21 +79,31 @@ export class GameEngine {
   attachRoom(room: Room) {
     this.room = room;
 
-    // 1. Принимаем карту и рендерим её
-    room.onMessage("mapData", (mapData: any[][]) => {
-        console.log("Получена карта, начинаем рендер...");
-        this.mapManager.render(mapData);
+    // 1. Принимаем карту, рендерим и обновляем границы камеры
+    room.onMessage("mapData", async (mapData: any[][]) => {
+        console.log("Получена карта...");
+        const dims = await this.mapManager.render(mapData);
+        
+        // Обновляем размеры мира камеры
+        this.viewport.resize(window.innerWidth, window.innerHeight, dims.width, dims.height);
+        
+        // Обновляем плагин ограничения границ
+        this.viewport.plugins.remove('clamp');
+        this.viewport.clamp({ direction: 'all' });
+        
+        console.log(`Мир обновлен: ${dims.width}x${dims.height}`);
     });
 
-    // 2. Запрашиваем карту только когда готовы
     room.send("requestMap");
 
+    // Обработка игроков
     room.state.players.onAdd = (player: any, sessionId: string) => {
        this.createPlayer(sessionId, player);
        
+       // Если это наш персонаж — следим камерой
        if (sessionId === room.sessionId) {
            const p = this.players.get(sessionId);
-           if (p) this.viewport.follow(p);
+           if (p) this.viewport.follow(p, { speed: 0, acceleration: 0 }); // Мгновенное слежение
        }
 
        player.onChange = () => {
@@ -96,16 +119,13 @@ export class GameEngine {
   createPlayer(sessionId: string, data: any) {
      const container = new PIXI.Container();
      
-     // Выбор спрайта
      const classNames = ['warrior', 'knight', 'archer', 'mage', 'priest'];
-     // В Legacy 'skin' был индексом в массиве
      const skinIndex = data.skin !== undefined ? data.skin : 0; 
      const skinName = classNames[skinIndex] || 'warrior';
      
      try {
          const texture = PIXI.Assets.get(skinName);
-         // Legacy спрайты - это листы. Берем первый кадр (Stand South)
-         // В main.js: new PIXI.Rectangle(0, 10*64, 64, 64)
+         // Берем первый кадр (Stand South) как в main.js
          const frameSize = 64;
          const standTexture = new PIXI.Texture({
              source: texture.source,
@@ -113,13 +133,13 @@ export class GameEngine {
          });
          
          const sprite = new PIXI.Sprite(standTexture);
-         sprite.anchor.set(0.5);
+         sprite.anchor.set(0.5, 0.5); // Центрируем спрайт
          sprite.width = 60; 
          sprite.height = 60;
          container.addChild(sprite);
          
      } catch (e) {
-         // Фолбек - красный круг
+         // Фолбек
          const graphics = new PIXI.Graphics();
          graphics.circle(0, 0, 15);
          graphics.fill({ color: 0xFF0000 });
@@ -137,13 +157,14 @@ export class GameEngine {
              fontFamily: 'Arial'
          }
      });
-     text.anchor.set(0.5, 2.5);
-
+     text.anchor.set(0.5, 2.0); // Текст над головой
      container.addChild(text);
      
      container.x = data.x;
      container.y = data.y;
-     container.zIndex = 100; 
+     
+     // ВАЖНО: Устанавливаем Z-Index равным Y координате для правильного перекрытия
+     container.zIndex = data.y;
 
      this.viewport.addChild(container);
      this.players.set(sessionId, container);
@@ -154,6 +175,8 @@ export class GameEngine {
       if (p) {
           p.x = data.x;
           p.y = data.y;
+          // Обновляем слой при движении
+          p.zIndex = data.y;
       }
   }
 
