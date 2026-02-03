@@ -4,9 +4,6 @@ export class MapManager {
     container: PIXI.Container;
     tileSize: number = 40;
     
-    // Кэш текстур
-    private textureCache: Map<string, PIXI.Texture> = new Map();
-
     constructor() {
         this.container = new PIXI.Container();
         this.container.sortableChildren = true; 
@@ -18,14 +15,14 @@ export class MapManager {
         if (!mapData || mapData.length === 0) return;
 
         this.container.removeChildren();
-        console.log(`Starting map render. Size: ${mapData.length}x${mapData[0].length}`);
+        console.log(`Starting map render. Size: ${mapData.length}x${mapData[0]?.length}`);
 
-        // 1. Сбор уникальных ID тайлов, чтобы не грузить дубликаты
+        // 1. Сбор уникальных ID тайлов
         const uniqueFrames = new Set<string>();
         for (let i = 0; i < mapData.length; i++) {
+            if (!Array.isArray(mapData[i])) continue; // Проверка на валидность ряда
             for (let j = 0; j < mapData[i].length; j++) {
                 const tile = mapData[i][j];
-                // Проверяем, что frame существует. В легаси коде это число (ID картинки)
                 if (tile && tile.frame !== undefined) {
                     uniqueFrames.add(String(tile.frame));
                 }
@@ -34,65 +31,47 @@ export class MapManager {
 
         console.log(`Found ${uniqueFrames.size} unique tiles to load.`);
 
-        // 2. Формируем список ассетов для загрузки
-        // Путь совпадает с легаси: images/map/1.png
+        // 2. Формируем список для загрузки
         const assetsToLoad: { alias: string, src: string }[] = [];
-        
         uniqueFrames.forEach(id => {
             const alias = `tile_${id}`;
-            // Проверяем, есть ли уже в кэше Pixi
             if (!PIXI.Assets.cache.has(alias)) {
-                assetsToLoad.push({
-                    alias: alias,
-                    src: `/images/map/${id}.png`
-                });
+                assetsToLoad.push({ alias: alias, src: `/images/map/${id}.png` });
             }
         });
 
-        // 3. Загружаем всё пачкой (параллельно)
+        // 3. Загружаем
         if (assetsToLoad.length > 0) {
             try {
                 await PIXI.Assets.load(assetsToLoad);
             } catch (e) {
-                console.warn("Some tiles failed to load (likely invisible/logic tiles). Continuing...");
+                console.warn("Some tiles failed to load.");
             }
         }
 
-        // 4. Синхронная отрисовка карты (теперь это будет быстро)
+        // 4. Отрисовка
         for (let i = 0; i < mapData.length; i++) {
+            if (!Array.isArray(mapData[i])) continue;
             for (let j = 0; j < mapData[i].length; j++) {
                 const tileData = mapData[i][j];
                 if (!tileData || tileData.frame === undefined) continue;
 
-                const frameId = String(tileData.frame); 
-                const alias = `tile_${frameId}`;
-                
-                // Пытаемся получить текстуру
-                let texture: PIXI.Texture;
+                const alias = `tile_${tileData.frame}`;
                 try {
-                    texture = PIXI.Assets.get(alias);
-                } catch {
-                    // Если текстуры нет (например, логический блок без картинки), пропускаем
-                    continue;
-                }
-
-                if (texture) {
-                    const sprite = new PIXI.Sprite(texture);
-                    
-                    sprite.x = j * this.tileSize;
-                    sprite.y = i * this.tileSize;
-                    sprite.width = this.tileSize;
-                    sprite.height = this.tileSize;
-                    sprite.zIndex = 0; 
-                    
-                    // Оптимизация: отключаем события мыши для тайлов земли
-                    sprite.eventMode = 'none'; 
-
-                    this.container.addChild(sprite);
-                }
+                    const texture = PIXI.Assets.get(alias);
+                    if (texture) {
+                        const sprite = new PIXI.Sprite(texture);
+                        sprite.x = j * this.tileSize;
+                        sprite.y = i * this.tileSize;
+                        sprite.width = this.tileSize;
+                        sprite.height = this.tileSize;
+                        sprite.zIndex = 0; 
+                        sprite.eventMode = 'none'; 
+                        this.container.addChild(sprite);
+                    }
+                } catch {}
             }
         }
-        
         console.log("Map render complete!");
     }
 }
