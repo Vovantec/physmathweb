@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { NPC_REGISTRY } from './NpcRegistry';
 
 export class MapManager {
     container: PIXI.Container;
@@ -9,7 +10,7 @@ export class MapManager {
         this.container.sortableChildren = true; 
     }
 
-    async render(mapData: any[][]): Promise<{ width: number, height: number }> {
+    async render(mapData: any[][], onFoundNPC: (id: string, type: string, x: number, y: number) => void): Promise<{ width: number, height: number }> {
         if (!mapData || mapData.length === 0) return { width: 0, height: 0 };
 
         this.container.removeChildren();
@@ -49,44 +50,39 @@ export class MapManager {
                 const x = j * this.tileSize;
                 const y = i * this.tileSize;
 
-                // Пол
-                if (cell.frame !== undefined) {
-                    const texture = this.getTexture(`/images/map/${cell.frame}.png`);
-                    if (texture) {
-                        const sprite = new PIXI.Sprite(texture);
-                        sprite.x = x; sprite.y = y;
-                        sprite.width = this.tileSize; sprite.height = this.tileSize;
-                        sprite.zIndex = -1000; // На самом дне
-                        sprite.eventMode = 'static'; 
-                        this.container.addChild(sprite);
-                    }
-                }
+                // ... (код отрисовки пола/тайлов) ...
 
-                // Объект
+                // Объект (NPC или Декорация)
                 if (cell.objects && cell.objects.obj) {
-                    const texture = this.getTexture(`/images/map/${cell.objects.obj}.png`);
-                    if (texture) {
-                        const objSprite = new PIXI.Sprite(texture);
-                        const size = cell.objects.size || 1;
-                        
-                        objSprite.width = this.tileSize * size;
-                        
-                        // В Legacy коде высота часто подгонялась. Тут сделаем простую логику.
-                        // Если спрайт квадратный - ок, если высокий - он будет вытянут вверх
-                        const ratio = texture.height / texture.width;
-                        objSprite.height = objSprite.width * ratio;
+                    const objId = cell.objects.obj; // Например "3122"
 
-                        // Позиционирование: ставим якорь в низ-центр клетки
-                        // Но так как у нас координаты x,y это Top-Left клетки...
-                        // Настроим так:
-                        objSprite.anchor.set(0.5, 1);
-                        objSprite.x = x + (this.tileSize * size) / 2; // Центр по X
-                        objSprite.y = y + this.tileSize; // Низ по Y
-
-                        // Сортировка: объект на линии Y должен перекрывать игрока, который выше него
-                        objSprite.zIndex = y; 
-                        
-                        this.container.addChild(objSprite);
+                    // ПРОВЕРКА: Это NPC или обычная картинка?
+                    if (NPC_REGISTRY[objId]) {
+                        // Это NPC! Не рисуем его как спрайт, а сообщаем GameEngine
+                        const npcDef = NPC_REGISTRY[objId];
+                        // Центрируем NPC в клетке (x + половина тайла)
+                        onFoundNPC(
+                            `npc_${x}_${y}`, // Уникальный ID для сцены
+                            npcDef.alias,    // Алиас Spine (npc_assasin_1)
+                            x + this.tileSize / 2, 
+                            y + this.tileSize      // Обычно NPC стоят ногами на низу клетки
+                        );
+                    } else {
+                        // Это обычная декорация (дерево, камень), рисуем как раньше
+                        const texture = this.getTexture(`/images/map/${objId}.png`);
+                        if (texture) {
+                            const objSprite = new PIXI.Sprite(texture);
+                            // ... ваш старый код настройки спрайта ...
+                            const size = cell.objects.size || 1;
+                            objSprite.width = this.tileSize * size;
+                            const ratio = texture.height / texture.width;
+                            objSprite.height = objSprite.width * ratio;
+                            objSprite.anchor.set(0.5, 1);
+                            objSprite.x = x + (this.tileSize * size) / 2;
+                            objSprite.y = y + this.tileSize;
+                            objSprite.zIndex = y; 
+                            this.container.addChild(objSprite);
+                        }
                     }
                 }
             }

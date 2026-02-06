@@ -4,6 +4,7 @@ import { Room } from 'colyseus.js';
 import { MapManager } from './MapManager';
 import { SimplePathfinder } from './SimplePathfinder';
 import { NPC } from './NPC';
+import { getNpcAssetsToLoad } from './NpcRegistry';
 
 type Direction = 'south' | 'north' | 'west' | 'east';
 type Action = 'stand' | 'walk';
@@ -105,7 +106,7 @@ export class GameEngine {
 
     setTimeout(() => {
         // Используем алиас 'npc_demon', который мы объявили выше
-        this.createNPC("Assassin_1", "npc_assasin_1", 500, 400);
+        //this.createNPC("Assassin_1", "npc_assasin_1", 500, 400);
         
         // Можно проверить и других:
         // this.createNPC("dragon_1", "npc_dragon", 700, 400);
@@ -219,21 +220,17 @@ export class GameEngine {
   }
 
   async loadAssetsGlobal() {
-    // 1. Обычные спрайты
+    // 1. Обычные спрайты (ваши старые)
     const requiredAssets = [
         { alias: 'warrior', src: '/images/character_sprite/warrior.png' },
         { alias: 'knight', src: '/images/character_sprite/knight.png' },
         { alias: 'archer', src: '/images/character_sprite/archer.png' },
         { alias: 'mage', src: '/images/character_sprite/mage.png' },
-        { alias: 'priest', src: '/images/character_sprite/priest.png' },
+        { alias: 'priest', src: '/images/character_sprite/priest.png' }
     ];
 
-    const spineAssets = [
-         { alias: 'npc_assasin_1', src: '/images/npcs/Assassin_1/Assassin_1.json' },
-         { alias: 'npc_druid_1', src: '/images/npcs/Druid_1/Druid_1.json' },
-         { alias: 'npc_dwarf_1', src: '/images/npcs/Dwarf_1/Dwarf_1.json' },
-         { alias: 'npc_elemental_1', src: '/images/npcs/Elemental_1/Elemental_1.json' }
-    ];
+    // 2. Spine ассеты берем из реестра
+    const spineAssets = getNpcAssetsToLoad();
 
     const assetsToLoad = [
         ...requiredAssets.filter(a => !PIXI.Assets.cache.has(a.alias)),
@@ -243,33 +240,35 @@ export class GameEngine {
     if (assetsToLoad.length > 0) {
         try {
             await PIXI.Assets.load(assetsToLoad);
-            console.log("Assets loaded successfully");
+            console.log("Global Assets loaded");
         } catch (e) {
             console.warn("Assets loading warning:", e);
         }
     }
   }
 
-  createNPC(id: string, type: string, x: number, y: number) {
+    createNPC(id: string, type: string, x: number, y: number) {
         if (this.npcs.has(id)) return;
 
-        const spineAsset = PIXI.Assets.get(type);
-
-        if (!spineAsset) {
-            console.error(`Spine asset '${type}' not found!`);
+        // Проверяем, загружены ли ресурсы (опционально, для отладки)
+        if (!PIXI.Assets.cache.has(type) || !PIXI.Assets.cache.has(type + '_atlas')) {
+            console.error(`Assets for NPC '${type}' (json or atlas) not found in cache!`);
             return;
         }
 
-        const npc = new NPC(id, spineAsset);
+        // Передаем 'type' (это alias, например "npc_assasin_1")
+        // Масштаб можно взять из реестра или передать вручную
+        const npc = new NPC(id, type, 0.25); 
+
         npc.x = x;
         npc.y = y;
-        npc.zIndex = y; 
+        npc.zIndex = y;
 
         if (this.viewport && !this.viewport.destroyed) {
             this.viewport.addChild(npc);
             this.npcs.set(id, npc);
         }
-  }
+    }
 
   attachRoom(room: Room) {
     if (this.isDestroyed) return;
@@ -280,7 +279,18 @@ export class GameEngine {
         
         this.pathfindingManager.buildGrid(mapData);
 
-        const dims = await this.mapManager.render(mapData);
+        // Очищаем старых NPC перед рендером новой карты
+        this.npcs.forEach(npc => {
+            npc.destroy();
+            if (this.viewport) this.viewport.removeChild(npc);
+        });
+        this.npcs.clear();
+
+        // Передаем callback для создания NPC
+        const dims = await this.mapManager.render(mapData, (id, type, x, y) => {
+            this.createNPC(id, type, x, y);
+        });
+
         if (this.viewport && !this.viewport.destroyed) {
             this.viewport.resize(window.innerWidth, window.innerHeight, dims.width, dims.height);
             this.viewport.plugins.remove('clamp');

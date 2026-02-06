@@ -26,7 +26,8 @@ export async function GET(
     if (remoteBase) {
         try {
             const remoteUrl = `${remoteBase}/images/${urlPath.join('/')}`;
-            const response = await fetch(remoteUrl, { signal: AbortSignal.timeout(2000) });
+            // Увеличим таймаут до 5 секунд
+            const response = await fetch(remoteUrl, { signal: AbortSignal.timeout(5000) });
             if (response.ok) {
                 return new NextResponse(response.body, {
                     headers: {
@@ -34,9 +35,13 @@ export async function GET(
                         'Cache-Control': 'public, max-age=3600',
                     },
                 });
+            } else {
+                // Логируем, если сервер ответил ошибкой (например, 404 или 500)
+                console.warn(`[Proxy Image] Remote replied ${response.status} for ${remoteUrl}`);
             }
         } catch (error) {
-            // Игнорируем ошибки прокси, пробуем локально
+            // !!! ВАЖНО: Логируем ошибку, чтобы увидеть её в `docker logs`
+            console.error(`[Proxy Image Error] Failed to fetch ${remoteBase}:`, error);
         }
     }
 
