@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@esotericsoftware/spine-pixi-v8": "^4.2.0",
     "@prisma/client": "^5.22.0",
     "colyseus.js": "^0.15.0",
     "jsonwebtoken": "^9.0.2",

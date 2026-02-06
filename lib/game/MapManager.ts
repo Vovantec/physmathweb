@@ -50,11 +50,25 @@ export class MapManager {
                 const x = j * this.tileSize;
                 const y = i * this.tileSize;
 
-                // ... (код отрисовки пола/тайлов) ...
+                // --- ИСПРАВЛЕНИЕ: Отрисовка пола ---
+                if (cell.frame !== undefined) {
+                    const floorTexture = this.getTexture(`/images/map/${cell.frame}.png`);
+                    if (floorTexture) {
+                        const floorSprite = new PIXI.Sprite(floorTexture);
+                        floorSprite.x = x;
+                        floorSprite.y = y;
+                        floorSprite.width = this.tileSize;
+                        floorSprite.height = this.tileSize;
+                        // Ставим zIndex меньше, чем у любых объектов (у объектов zIndex = y >= 0)
+                        floorSprite.zIndex = -1; 
+                        this.container.addChild(floorSprite);
+                    }
+                }
+                // -----------------------------------
 
                 // Объект (NPC или Декорация)
                 if (cell.objects && cell.objects.obj) {
-                    const objId = cell.objects.obj; // Например "3122"
+                    const objId = cell.objects.obj; 
 
                     // ПРОВЕРКА: Это NPC или обычная картинка?
                     if (NPC_REGISTRY[objId]) {
@@ -72,11 +86,12 @@ export class MapManager {
                         const texture = this.getTexture(`/images/map/${objId}.png`);
                         if (texture) {
                             const objSprite = new PIXI.Sprite(texture);
-                            // ... ваш старый код настройки спрайта ...
+                            
                             const size = cell.objects.size || 1;
                             objSprite.width = this.tileSize * size;
                             const ratio = texture.height / texture.width;
                             objSprite.height = objSprite.width * ratio;
+                            
                             objSprite.anchor.set(0.5, 1);
                             objSprite.x = x + (this.tileSize * size) / 2;
                             objSprite.y = y + this.tileSize;
