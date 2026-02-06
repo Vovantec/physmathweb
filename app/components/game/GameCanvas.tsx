@@ -3,16 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { GameEngine } from '@/lib/game/GameEngine';
 import { Room } from 'colyseus.js';
 import DialogModal from './DialogModal';
-// Импортируем тип из ваших типов. Если его нет, раскомментируйте интерфейс ниже.
-import { DialogData } from '@/lib/game/types'; 
+// import { DialogData } from '@/lib/game/types'; // Раскомментируйте, если есть типы
 
-/* // Если TypeScript ругается на DialogData, раскомментируйте этот блок:
+// Временный интерфейс, если нет в types.ts
 interface DialogData {
   npcName: string;
   text: string;
   options: { id: number; text: string }[];
 }
-*/
 
 interface GameCanvasProps {
   room: Room;
@@ -22,11 +20,12 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
-  // 1. Добавляем состояние для диалога
+  // Храним ID NPC, к которому мы идем, в ref (чтобы не вызывать перерисовки)
+  const pendingInteraction = useRef<string | null>(null);
+
   const [dialogData, setDialogData] = useState<DialogData | null>(null);
 
   useEffect(() => {
-    // Защита от двойной инициализации (React 18)
     if (engineRef.current) return;
 
     const engine = new GameEngine();
@@ -40,11 +39,14 @@ export default function GameCanvas({ room }: GameCanvasProps) {
 
         engine.attachRoom(room);
 
-        // --- 2. ОБРАБОТЧИК ВЗАИМОДЕЙСТВИЯ С NPC ---
+        // --- 1. КЛИК ПО NPC ---
         engine.onNpcInteract = (id, x, y) => {
-            console.log("React: Opening dialog for", id);
+            console.log("React: Clicked NPC, walking to...", id);
             
-            // А. Логика подхода к NPC (чтобы персонаж подошел перед разговором)
+            // Запоминаем, что мы хотим поговорить с этим NPC по прибытии
+            pendingInteraction.current = id;
+
+            // Логика движения к цели
             const myPlayer = engine.players.get(room.sessionId);
             if (myPlayer) {
                 const startX = engine.pathfindingManager.toGrid(myPlayer.x);
@@ -52,37 +54,40 @@ export default function GameCanvas({ room }: GameCanvasProps) {
                 const endX = engine.pathfindingManager.toGrid(x);
                 const endY = engine.pathfindingManager.toGrid(y);
 
-                // Ищем путь
                 const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
                 
                 if (path.length > 0) {
-                   // Убираем последнюю точку, чтобы встать РЯДОМ с NPC, а не НА него
-                   // (можно убрать path.pop(), если хотите вставать прямо в ту же клетку)
-                   if (path.length > 1) path.pop();
-
-                   engine.movePlayerAlongPath(room.sessionId, path);
-                   room.send("movePath", { path: path }); 
+                    // Убираем последнюю точку (самого NPC), чтобы встать рядом
+                    if (path.length > 1) path.pop(); 
+                    
+                    engine.movePlayerAlongPath(room.sessionId, path);
+                    room.send("movePath", { path: path }); 
+                } else {
+                    // Если мы уже стоим вплотную - path пустой или короткий.
+                    // Можно сразу открывать диалог.
+                    // Для простоты вызовем "прибытие" вручную или позволим engine.onPlayerArrived сработать (если логика позволяет)
+                    // Но проще просто сразу открыть:
+                    handleOpenDialog(id);
+                    pendingInteraction.current = null;
                 }
             }
-
-            // Б. Открытие диалогового окна
-            // В будущем здесь будет запрос к серверу за текстом диалога
-            setDialogData({
-                npcName: `Страж ${id.slice(0, 4)}`, // Генерируем имя или берем из реестра
-                text: "Приветствую, путник! Я охраняю эти земли. Не проходи мимо, если ищешь приключений.",
-                options: [
-                    { id: 1, text: "Торговать" },
-                    { id: 2, text: "Взять задание" },
-                    { id: 3, text: "Уйти" }
-                ]
-            });
         };
 
-        // --- 3. ОБРАБОТЧИК КЛИКА ПО ЗЕМЛЕ ---
+        // --- 2. ИГРОК ПРИШЕЛ ---
+        engine.onPlayerArrived = () => {
+            if (pendingInteraction.current) {
+                console.log("React: Arrived at target, opening dialog:", pendingInteraction.current);
+                handleOpenDialog(pendingInteraction.current);
+                pendingInteraction.current = null; // Сбрасываем цель
+            }
+        };
+
+        // --- 3. КЛИК ПО ЗЕМЛЕ ---
         if (engine.viewport) {
             engine.viewport.on('clicked', (e) => {
-                // Если кликнули по земле — закрываем диалог
-                setDialogData(null);
+                // Если кликнули в пустоту - отменяем намерение говорить
+                pendingInteraction.current = null;
+                setDialogData(null); // Закрываем текущее окно
 
                 const world = e.world;
                 const myPlayer = engine.players.get(room.sessionId);
@@ -103,6 +108,19 @@ export default function GameCanvas({ room }: GameCanvasProps) {
         }
     };
 
+    // Вынесенная функция открытия диалога
+    const handleOpenDialog = (npcId: string) => {
+         setDialogData({
+            npcName: `Страж ${npcId.slice(0, 4)}`,
+            text: `Привет! Я видел, как ты шел ко мне через весь экран. Я NPC с ID: ${npcId}`,
+            options: [
+                { id: 1, text: "Взять квест" },
+                { id: 2, text: "Торговать" },
+                { id: 3, text: "Уйти" }
+            ]
+        });
+    };
+
     launch();
 
     return () => {
@@ -115,25 +133,19 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   }, [room]);
 
   return (
-    // Важно: relative, чтобы абсолютное окно диалога позиционировалось внутри этого блока
     <div className="relative w-full h-full">
-        
-        {/* Слой игры */}
         <canvas ref={canvasRef} className="block w-full h-full bg-slate-900" />
         
-        {/* Слой UI: Диалоговое окно */}
         {dialogData && (
             <DialogModal 
                 data={dialogData}
                 onOptionSelect={(id) => {
-                    console.log("Выбран вариант:", id);
-                    // Здесь будет логика ответов. Пока просто закрываем на кнопке "Уйти" (id 3)
                     if (id === 3) setDialogData(null);
+                    // Тут можно добавить логику других кнопок
                 }}
                 onClose={() => setDialogData(null)}
             />
         )}
-
     </div>
   );
 }

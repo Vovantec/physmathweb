@@ -36,6 +36,7 @@ export class GameEngine {
     tileSize = 64;
 
     public onNpcInteract: ((id: string, x: number, y: number) => void) | null = null;
+    public onPlayerArrived: (() => void) | null = null;
 
     public isDestroyed = false;
 
@@ -164,8 +165,9 @@ export class GameEngine {
     updateLoop(deltaTime: number) {
         if (this.isDestroyed) return;
 
-        this.players.forEach(player => {
-            this.processPlayerMovement(player, deltaTime);
+        this.players.forEach((player, sessionId) => {
+            // Передаем sessionId, чтобы узнать, "мой" ли это игрок
+            this.processPlayerMovement(player, deltaTime, sessionId);
         });
 
         if (this.viewport && !this.viewport.destroyed && this.app?.ticker?.started) {
@@ -173,7 +175,7 @@ export class GameEngine {
         }
     }
 
-    processPlayerMovement(player: PlayerContainer, deltaTime: number) {
+    processPlayerMovement(player: PlayerContainer, deltaTime: number, sessionId: string) {
         if (player.pathQueue.length > 0) {
             const target = player.pathQueue[0];
             const targetPixelX = target[0];
@@ -186,14 +188,25 @@ export class GameEngine {
             const moveStep = player.speed * deltaTime;
 
             if (dist <= moveStep) {
+                // Шаг завершен, встаем точно в точку
                 player.x = targetPixelX;
                 player.y = targetPixelY;
-                player.pathQueue.shift();
+                player.pathQueue.shift(); // Удаляем точку из очереди
 
+                // Если очередь опустела — значит мы прибыли!
                 if (player.pathQueue.length === 0) {
                     this.setAnimation(player, 'stand', player.currentDir);
+
+                    // ПРОВЕРКА: Если это МОЙ игрок, вызываем событие прибытия
+                    if (this.room && sessionId === this.room.sessionId) {
+                        if (this.onPlayerArrived) {
+                            console.log("Engine: Player arrived at destination");
+                            this.onPlayerArrived();
+                        }
+                    }
                 }
             } else {
+                // Продолжаем движение
                 player.x += (dx / dist) * moveStep;
                 player.y += (dy / dist) * moveStep;
 
@@ -279,7 +292,7 @@ export class GameEngine {
 
         npc.on('interact', (npcId, npcX, npcY) => {
             console.log(`GameEngine: Event 'interact' received from ${npcId}`);
-            
+
             // Передаем сигнал наверх в React
             if (this.onNpcInteract) {
                 this.onNpcInteract(npcId, npcX, npcY);
