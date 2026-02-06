@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 // Имя вашего бота (чтобы сформировать ссылку)
-const BOT_USERNAME = "PhysicsMath_Bot";
+const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "PhysicsMath_Bot";
 
 export default function BotLogin({ onAuth }: { onAuth: (user: any) => void }) {
   const [link, setLink] = useState('');

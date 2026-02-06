@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { type NextRequest } from 'next/server';
 
-// Простая карта MIME-типов, чтобы не устанавливать лишние библиотеки
 const MIMES: Record<string, string> = {
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
@@ -17,39 +16,52 @@ const MIMES: Record<string, string> = {
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: Promise<{ path: string[] }> }
+    props: { params: Promise<{ path: string[] }> }
 ) {
-    try {
-        // 1. Получаем путь из URL (например, ['tileset.png'] или ['npcs', 'elf.png'])
-        const { path: urlPath } = await params;
-        
-        // 2. Собираем реальный путь к файлу в папке /container
-        // Если запрос был /images/tileset.png, то ищем в /container/tileset.png
-        // Если у вас в /container есть подпапка images, добавьте её в join
-        const filePath = path.join('/container/images', ...urlPath);
+    const params = await props.params;
+    const urlPath = params.path;
 
-        // 3. Проверяем, существует ли файл
+    // === 1. Проксирование (для локальной разработки) ===
+    const remoteBase = process.env.REMOTE_IMAGES_URL; 
+    if (remoteBase) {
+        try {
+            const remoteUrl = `${remoteBase}/images/${urlPath.join('/')}`;
+            const response = await fetch(remoteUrl, { signal: AbortSignal.timeout(2000) });
+            if (response.ok) {
+                return new NextResponse(response.body, {
+                    headers: {
+                        'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream',
+                        'Cache-Control': 'public, max-age=3600',
+                    },
+                });
+            }
+        } catch (error) {
+            // Игнорируем ошибки прокси, пробуем локально
+        }
+    }
+
+    // === 2. Локальные файлы (Исправлено для Windows/Docker) ===
+    try {
+        // process.cwd() - это папка проекта. Next.js держит статику в ./public
+        const filePath = path.join(process.cwd(), 'public', 'images', ...urlPath);
+
         if (!fs.existsSync(filePath)) {
             return new NextResponse('File not found', { status: 404 });
         }
 
-        // 4. Читаем файл
         const fileBuffer = fs.readFileSync(filePath);
-
-        // 5. Определяем тип контента
         const ext = path.extname(filePath).toLowerCase();
         const contentType = MIMES[ext] || 'application/octet-stream';
 
-        // 6. Отдаем файл браузеру
         return new NextResponse(fileBuffer, {
             headers: {
                 'Content-Type': contentType,
-                'Cache-Control': 'public, max-age=31536000, immutable', // Кэширование
+                'Cache-Control': 'public, max-age=31536000, immutable',
             },
         });
 
     } catch (e) {
-        console.error("Image loading error:", e);
+        console.error("Local Image error:", e);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }

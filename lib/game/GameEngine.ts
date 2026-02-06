@@ -2,36 +2,50 @@ import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { Room } from 'colyseus.js';
 import { MapManager } from './MapManager';
+import { SimplePathfinder } from './SimplePathfinder';
+import { NPC } from './NPC';
 
-// Типы для управления анимациями
 type Direction = 'south' | 'north' | 'west' | 'east';
 type Action = 'stand' | 'walk';
 
 interface PlayerContainer extends PIXI.Container {
     sprite: PIXI.AnimatedSprite;
-    lastX: number;
-    lastY: number;
+    targetX: number;
+    targetY: number;
+    pathQueue: number[][];
+    speed: number;
     currentDir: Direction;
     currentAction: Action;
-    textures: Record<string, PIXI.Texture[]>; // Кэш текстур для этого класса
+    textures: Record<string, PIXI.Texture[]>;
 }
 
 export class GameEngine {
-  app!: PIXI.Application;
-  viewport!: Viewport;
+  app: PIXI.Application | undefined;
+  viewport: Viewport | undefined;
   room: Room | null = null;
-  mapManager!: MapManager;
+  npcs: Map<string, NPC> = new Map();
   
+  mapManager: MapManager | undefined;
+  pathfindingManager: SimplePathfinder;
+  
+  // Курсор (хайлайт клетки)
+  cursor: PIXI.Graphics | undefined;
+
   players: Map<string, PlayerContainer> = new Map();
+  tileSize = 64;
+  
+  public isDestroyed = false;
 
-  // Размеры из Legacy кода
-  tileSize = 64; // Размер кадра в спрайтшите
+  constructor() {
+      this.pathfindingManager = new SimplePathfinder();
+  }
 
-  constructor() {}
+  async init(canvas: HTMLCanvasElement): Promise<boolean> {
+    this.isDestroyed = false;
 
-  async init(canvas: HTMLCanvasElement) {
+    // 1. Создаем приложение
     this.app = new PIXI.Application();
-    
+
     await this.app.init({
       canvas: canvas,
       width: window.innerWidth,
@@ -42,41 +56,171 @@ export class GameEngine {
       preference: 'webgl',
     });
 
-    // 1. Создаем камеру
+    if (this.isDestroyed) {
+        this.hardDestroy();
+        return false;
+    }
+
+    // 2. Создаем камеру
+    if (!this.app.renderer) return false;
+
     this.viewport = new Viewport({
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
       worldWidth: 4000, 
       worldHeight: 4000,
-      events: this.app.renderer.events
+      events: this.app.renderer.events // Подключаем события Pixi
     });
 
     this.app.stage.addChild(this.viewport);
-
-    // 2. ВАЖНО: Включаем сортировку для Z-Index (чтобы персонаж заходил ЗА объекты)
+    
+    // Включаем сортировку (Z-Index), чтобы персонажи перекрывали деревья
     this.viewport.sortableChildren = true;
+    
+    this.viewport.drag().pinch().wheel().decelerate().clamp({ direction: 'all' });
 
-    // Настройки камеры
-    this.viewport
-        .drag()
-        .pinch()
-        .wheel()
-        .decelerate()
-        .clamp({ direction: 'all' });
+    // 3. Создаем Курсор (Хайлайт)
+    this.createCursor();
 
-    // 3. Загружаем ресурсы
-    await this.loadCharacterAssets();
+    // 4. Загрузка Ассетов
+    await this.loadAssetsGlobal();
+    if (this.isDestroyed) return false;
 
-    // 4. Инициализируем карту
+    // 5. Инициализация карты
     this.mapManager = new MapManager();
-    // Контейнер карты тоже добавляем в viewport
-    this.viewport.addChild(this.mapManager.container);
+    if (!this.viewport.destroyed) {
+        this.viewport.addChild(this.mapManager.container);
+    }
+
+    // 6. Запускаем игровой цикл
+    this.app.ticker.add((ticker) => {
+        this.updateLoop(ticker.deltaTime);
+    });
+
+    // 7. Слушаем движение мыши для обновления курсора
+    // Используем 'pointermove' на stage, чтобы ловить движение везде
+    this.app.stage.eventMode = 'static';
+    this.app.stage.hitArea = this.app.screen; // Вся область экрана активна
+    this.app.stage.on('pointermove', (e) => this.onPointerMove(e));
+
+    setTimeout(() => {
+        // Используем алиас 'npc_demon', который мы объявили выше
+        this.createNPC("Assassin_1", "npc_assasin_1", 500, 400);
+        
+        // Можно проверить и других:
+        // this.createNPC("dragon_1", "npc_dragon", 700, 400);
+     }, 1000);
 
     window.addEventListener('resize', this.onResize);
+    return true;
   }
 
-  async loadCharacterAssets() {
-    const assets = [
+  // --- ЛОГИКА КУРСОРА ---
+  createCursor() {
+      if (!this.viewport) return;
+
+      this.cursor = new PIXI.Graphics();
+      
+      // Рисуем квадрат
+      this.cursor.rect(0, 0, this.tileSize, this.tileSize);
+      
+      // Стиль:
+      this.cursor.fill({ color: 0xffffff, alpha: 0.2 }); // Чуть поднял прозрачность до 0.2
+      this.cursor.stroke({ width: 2, color: 0xffffff, alpha: 0.8 });
+
+      // ИСПРАВЛЕНИЕ:
+      // Было -500 (рисовался под картой).
+      // Ставим 1 (рисуется ПОВЕРХ карты, которая имеет 0).
+      // Игроки имеют zIndex = player.y (например, 100, 200...), поэтому они будут ПОВЕРХ курсора.
+      this.cursor.zIndex = 1; 
+
+      this.viewport.addChild(this.cursor);
+  }
+
+  onPointerMove(e: PIXI.FederatedPointerEvent) {
+      if (!this.viewport || !this.cursor || this.isDestroyed) return;
+
+      // 1. Конвертируем координаты экрана (global) в координаты мира (world)
+      // pixi-viewport делает это через toWorld
+      const worldPos = this.viewport.toWorld(e.global);
+
+      // 2. Снэппинг к сетке (округляем вниз до ближайшего tileSize)
+      const gridX = Math.floor(worldPos.x / this.tileSize);
+      const gridY = Math.floor(worldPos.y / this.tileSize);
+
+      // 3. Обновляем позицию
+      this.cursor.x = gridX * this.tileSize;
+      this.cursor.y = gridY * this.tileSize;
+
+      // Опционально: можно менять цвет курсора, если клетка непроходима
+      // const isWalkable = this.pathfindingManager.isWalkable(gridX, gridY);
+      // this.cursor.tint = isWalkable ? 0xffffff : 0xff0000; 
+  }
+
+  // --- ИГРОВОЙ ЦИКЛ ---
+  updateLoop(deltaTime: number) {
+      if (this.isDestroyed) return;
+
+      this.players.forEach(player => {
+          this.processPlayerMovement(player, deltaTime);
+      });
+      
+      if (this.viewport && !this.viewport.destroyed && this.app?.ticker?.started) {
+          this.viewport.children.sort((a, b) => a.zIndex - b.zIndex);
+      }
+  }
+
+  processPlayerMovement(player: PlayerContainer, deltaTime: number) {
+      if (player.pathQueue.length > 0) {
+          const target = player.pathQueue[0];
+          const targetPixelX = target[0];
+          const targetPixelY = target[1];
+
+          const dx = targetPixelX - player.x;
+          const dy = targetPixelY - player.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          const moveStep = player.speed * deltaTime;
+
+          if (dist <= moveStep) {
+              player.x = targetPixelX;
+              player.y = targetPixelY;
+              player.pathQueue.shift();
+              
+              if (player.pathQueue.length === 0) {
+                  this.setAnimation(player, 'stand', player.currentDir);
+              }
+          } else {
+              player.x += (dx / dist) * moveStep;
+              player.y += (dy / dist) * moveStep;
+
+              let newDir = player.currentDir;
+              if (Math.abs(dx) > Math.abs(dy)) {
+                  newDir = dx > 0 ? 'east' : 'west';
+              } else {
+                  newDir = dy > 0 ? 'south' : 'north';
+              }
+              this.setAnimation(player, 'walk', newDir);
+          }
+      } 
+      player.zIndex = player.y;
+  }
+
+  setAnimation(player: PlayerContainer, action: Action, dir: Direction) {
+      if (player.currentAction === action && player.currentDir === dir) return;
+
+      const animKey = `${action}_${dir}`;
+      if (player.textures && player.textures[animKey]) {
+          player.sprite.textures = player.textures[animKey];
+          player.sprite.play();
+          player.currentAction = action;
+          player.currentDir = dir;
+      }
+  }
+
+  async loadAssetsGlobal() {
+    // 1. Обычные спрайты
+    const requiredAssets = [
         { alias: 'warrior', src: '/images/character_sprite/warrior.png' },
         { alias: 'knight', src: '/images/character_sprite/knight.png' },
         { alias: 'archer', src: '/images/character_sprite/archer.png' },
@@ -84,42 +228,77 @@ export class GameEngine {
         { alias: 'priest', src: '/images/character_sprite/priest.png' },
     ];
 
-    try {
-        await PIXI.Assets.load(assets);
-    } catch (e) {
-        console.error("Ошибка загрузки персонажей:", e);
+    const spineAssets = [
+         { alias: 'npc_assasin_1', src: '/images/npcs/Assassin_1/Assassin_1.json' },
+         { alias: 'npc_druid_1', src: '/images/npcs/Druid_1/Druid_1.json' },
+         { alias: 'npc_dwarf_1', src: '/images/npcs/Dwarf_1/Dwarf_1.json' },
+         { alias: 'npc_elemental_1', src: '/images/npcs/Elemental_1/Elemental_1.json' }
+    ];
+
+    const assetsToLoad = [
+        ...requiredAssets.filter(a => !PIXI.Assets.cache.has(a.alias)),
+        ...spineAssets.filter(a => !PIXI.Assets.cache.has(a.alias))
+    ];
+
+    if (assetsToLoad.length > 0) {
+        try {
+            await PIXI.Assets.load(assetsToLoad);
+            console.log("Assets loaded successfully");
+        } catch (e) {
+            console.warn("Assets loading warning:", e);
+        }
     }
   }
 
+  createNPC(id: string, type: string, x: number, y: number) {
+        if (this.npcs.has(id)) return;
+
+        const spineAsset = PIXI.Assets.get(type);
+
+        if (!spineAsset) {
+            console.error(`Spine asset '${type}' not found!`);
+            return;
+        }
+
+        const npc = new NPC(id, spineAsset);
+        npc.x = x;
+        npc.y = y;
+        npc.zIndex = y; 
+
+        if (this.viewport && !this.viewport.destroyed) {
+            this.viewport.addChild(npc);
+            this.npcs.set(id, npc);
+        }
+  }
+
   attachRoom(room: Room) {
+    if (this.isDestroyed) return;
     this.room = room;
 
-    // Обработка карты
     room.onMessage("mapData", async (mapData: any[][]) => {
+        if (this.isDestroyed || !this.mapManager) return;
+        
+        this.pathfindingManager.buildGrid(mapData);
+
         const dims = await this.mapManager.render(mapData);
-        this.viewport.resize(window.innerWidth, window.innerHeight, dims.width, dims.height);
-        this.viewport.plugins.remove('clamp');
-        this.viewport.clamp({ direction: 'all' });
+        if (this.viewport && !this.viewport.destroyed) {
+            this.viewport.resize(window.innerWidth, window.innerHeight, dims.width, dims.height);
+            this.viewport.plugins.remove('clamp');
+            this.viewport.clamp({ direction: 'all' });
+        }
     });
 
     room.send("requestMap");
 
-    // Обработка игроков
-    room.state.players.onAdd = (player: any, sessionId: string) => {
-       this.createPlayer(sessionId, player);
-       
-       // ПРИВЯЗКА КАМЕРЫ (Как в Legacy)
-       if (sessionId === room.sessionId) {
-           const p = this.players.get(sessionId);
-           if (p) {
-               console.log("Camera attached to player:", player.name);
-               this.viewport.follow(p, { speed: 0 }); // speed: 0 = мгновенное следование
-           }
-       }
+    this.players.forEach(p => p.destroy());
+    this.players.clear();
 
-       player.onChange = () => {
-           this.updatePlayer(sessionId, player);
-       };
+    room.state.players.forEach((player: any, sessionId: string) => {
+        this.handlePlayerAdd(player, sessionId);
+    });
+
+    room.state.players.onAdd = (player: any, sessionId: string) => {
+        this.handlePlayerAdd(player, sessionId);
     };
 
     room.state.players.onRemove = (player: any, sessionId: string) => {
@@ -127,15 +306,36 @@ export class GameEngine {
     };
   }
 
-  /**
-   * Нарезка текстур по правилам Legacy main.js
-   */
-  getCharacterTextures(skinName: string) {
-      const baseTexture = PIXI.Assets.get(skinName).source;
-      const w = this.tileSize;
-      const h = this.tileSize;
+  handlePlayerAdd(playerData: any, sessionId: string) {
+      if (this.isDestroyed) return;
+      if (this.players.has(sessionId)) return;
 
-      // Вспомогательная функция для создания массива текстур
+      this.createPlayer(sessionId, playerData);
+      
+      const p = this.players.get(sessionId);
+      
+      if (this.room && sessionId === this.room.sessionId) {
+          if (p && this.viewport && !this.viewport.destroyed) {
+              this.viewport.follow(p, { speed: 0 });
+          }
+      }
+      
+      playerData.onChange = () => {
+          if (!this.isDestroyed && p) {
+              if (p.pathQueue.length === 0) {
+                 p.x = playerData.x;
+                 p.y = playerData.y;
+                 p.zIndex = playerData.y;
+              }
+          }
+      };
+  }
+
+  getCharacterTextures(skinName: string) {
+      if (!PIXI.Assets.cache.has(skinName)) return null;
+      
+      const baseTexture = PIXI.Assets.get(skinName).source;
+      const w = this.tileSize; const h = this.tileSize;
       const createAnim = (row: number, colStart: number, count: number) => {
           const textures = [];
           for (let i = 0; i < count; i++) {
@@ -146,27 +346,13 @@ export class GameEngine {
           }
           return textures;
       };
-
-      // Схема из Legacy кода:
-      // standSouth: Row 10, Col 0 (1 frame)
-      // walkSouth:  Row 10, Col 1..8 (8 frames)
-      // standWest:  Row 9, Col 0
-      // walkWest:   Row 9, Col 1..8
-      // standNorth: Row 8, Col 0
-      // walkNorth:  Row 8, Col 1..8
-      // standEast:  Row 11, Col 0
-      // walkEast:   Row 11, Col 1..8
-      
       return {
           'stand_south': createAnim(10, 0, 1),
           'walk_south':  createAnim(10, 1, 8),
-          
           'stand_west':  createAnim(9, 0, 1),
           'walk_west':   createAnim(9, 1, 8),
-          
           'stand_north': createAnim(8, 0, 1),
           'walk_north':  createAnim(8, 1, 8),
-          
           'stand_east':  createAnim(11, 0, 1),
           'walk_east':   createAnim(11, 1, 8),
       };
@@ -174,122 +360,64 @@ export class GameEngine {
 
   createPlayer(sessionId: string, data: any) {
      const container = new PIXI.Container() as PlayerContainer;
-     
+     container.pathQueue = [];
+     container.speed = 4;
+     container.targetX = data.x;
+     container.targetY = data.y;
+
      const classNames = ['warrior', 'knight', 'archer', 'mage', 'priest'];
      const skinIndex = data.skin !== undefined ? data.skin : 0; 
      const skinName = classNames[skinIndex] || 'warrior';
 
-     // 1. Нарезаем текстуры
-     try {
-         container.textures = this.getCharacterTextures(skinName);
-     } catch(e) {
-         console.error("Texture error", e);
-         // Fallback если текстура не загрузилась
+     const textures = this.getCharacterTextures(skinName);
+
+     if (textures) {
+         container.textures = textures;
+         const sprite = new PIXI.AnimatedSprite(container.textures['stand_south']);
+         sprite.anchor.set(0.5, 0.5); 
+         sprite.animationSpeed = 0.2; 
+         sprite.width = 60; sprite.height = 60;
+         sprite.play();
+         container.sprite = sprite;
+         container.addChild(sprite);
+     } else {
          const g = new PIXI.Graphics().circle(0,0,20).fill({color: 0xff0000});
          container.addChild(g);
-         this.players.set(sessionId, container);
-         this.viewport.addChild(container);
-         return;
      }
 
-     // 2. Создаем AnimatedSprite (по умолчанию стоит лицом вниз)
-     const sprite = new PIXI.AnimatedSprite(container.textures['stand_south']);
-     sprite.anchor.set(0.5, 0.5); // Центр спрайта
-     sprite.animationSpeed = 0.2; // Скорость анимации
-     sprite.width = 60;
-     sprite.height = 60;
-     sprite.play();
-     
-     container.sprite = sprite;
-     container.addChild(sprite);
-
-     // 3. Имя персонажа
      const text = new PIXI.Text({
          text: data.name, 
-         style: {
-             fontSize: 14, 
-             fill: 0xffffff,
-             stroke: { width: 3, color: 0x000000 },
-             fontWeight: 'bold',
-             fontFamily: 'Arial'
-         }
+         style: { fontSize: 14, fill: 0xffffff, stroke: { width: 3, color: 0x000000 }, fontWeight: 'bold', fontFamily: 'Arial' }
      });
      text.anchor.set(0.5, 2.0);
      container.addChild(text);
      
-     // 4. Координаты
      container.x = data.x;
      container.y = data.y;
-     
-     // Инициализируем данные для дельты
-     container.lastX = data.x;
-     container.lastY = data.y;
      container.currentDir = 'south';
      container.currentAction = 'stand';
-
-     // 5. Z-Index (Сортировка по Y)
      container.zIndex = data.y;
 
-     this.viewport.addChild(container);
+     if (this.viewport && !this.viewport.destroyed) {
+        this.viewport.addChild(container);
+     }
      this.players.set(sessionId, container);
   }
 
-  updatePlayer(sessionId: string, data: any) {
+  movePlayerAlongPath(sessionId: string, path: number[][]) {
       const p = this.players.get(sessionId);
-      if (!p || !p.sprite) return;
-
-      const newX = data.x;
-      const newY = data.y;
-
-      // 1. Вычисляем направление движения (Дельта)
-      const dx = newX - p.lastX;
-      const dy = newY - p.lastY;
-
-      // Порог чувствительности (чтобы не дергался из-за микросдвигов)
-      const threshold = 0.5;
-      
-      let isMoving = false;
-      let newDir = p.currentDir;
-
-      // Определение направления (приоритет Y, как в изометрии часто бывает, или по большей дельте)
-      if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
-          isMoving = true;
-          if (Math.abs(dx) > Math.abs(dy)) {
-              newDir = dx > 0 ? 'east' : 'west';
-          } else {
-              newDir = dy > 0 ? 'south' : 'north';
-          }
-      }
-
-      // 2. Обновляем анимацию только если изменилось состояние
-      const newAction = isMoving ? 'walk' : 'stand';
-      const animKey = `${newAction}_${newDir}`; // например 'walk_north'
-
-      if (p.currentAction !== newAction || p.currentDir !== newDir) {
-          if (p.textures[animKey]) {
-              p.sprite.textures = p.textures[animKey];
-              p.sprite.play();
-          }
-          p.currentDir = newDir;
-          p.currentAction = newAction;
-      }
-
-      // 3. Обновляем позицию
-      p.x = newX;
-      p.y = newY;
-      
-      // 4. Обновляем историю
-      p.lastX = newX;
-      p.lastY = newY;
-
-      // 5. Обновляем Z-Index для перекрытия (персонаж ниже - слой выше)
-      p.zIndex = newY;
+      if (!p) return;
+      const pixelPath = path.map(point => [
+          point[0] * this.tileSize + this.tileSize / 2,
+          point[1] * this.tileSize + this.tileSize / 2
+      ]);
+      p.pathQueue = pixelPath;
   }
 
   removePlayer(sessionId: string) {
       const p = this.players.get(sessionId);
       if (p) {
-          this.viewport.removeChild(p);
+          if (this.viewport && !this.viewport.destroyed) this.viewport.removeChild(p);
           p.destroy();
           this.players.delete(sessionId);
       }
@@ -298,13 +426,35 @@ export class GameEngine {
   onResize = () => {
     if (!this.app || !this.app.renderer) return;
     this.app.renderer.resize(window.innerWidth, window.innerHeight);
-    this.viewport.resize(window.innerWidth, window.innerHeight);
+    if (this.viewport && !this.viewport.destroyed) {
+        this.viewport.resize(window.innerWidth, window.innerHeight);
+    }
   }
 
   destroy() {
+    this.isDestroyed = true;
     window.removeEventListener('resize', this.onResize);
+
     if (this.app) {
-        this.app.destroy(true, { children: true });
+        try {
+            this.app.ticker?.stop();
+            if (this.app.renderer) {
+                this.app.destroy({
+                    removeView: true,
+                    texture: false,
+                    textureSource: false, 
+                    context: true
+                } as any);
+            }
+        } catch (e) {
+            console.error("GameEngine destroy error:", e);
+        }
+        this.app = undefined;
     }
+  }
+  
+  hardDestroy() {
+      this.destroy();
+      PIXI.Assets.reset(); 
   }
 }

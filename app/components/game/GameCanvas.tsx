@@ -12,39 +12,53 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   const engineRef = useRef<GameEngine | null>(null);
 
   useEffect(() => {
-    if (!canvasRef.current || engineRef.current) return;
-
     const engine = new GameEngine();
     engineRef.current = engine;
+    let isMounted = true;
 
-    const start = async () => {
+    const launch = async () => {
         if (!canvasRef.current) return;
-        
-        // Инициализация v8
-        await engine.init(canvasRef.current);
-        
-        // Подключаем комнату после готовности Pixi
+        const success = await engine.init(canvasRef.current);
+        if (!isMounted || !success) return;
+
         engine.attachRoom(room);
 
-        // Обработка кликов
-        engine.viewport.on('clicked', (e) => {
-            const world = e.world;
-            room.send("move", { x: world.x, y: world.y });
-        });
+        // ОБРАБОТКА КЛИКА С ПОИСКОМ ПУТИ
+        if (engine.viewport) {
+            engine.viewport.on('clicked', (e) => {
+                const world = e.world;
+                const myPlayer = engine.players.get(room.sessionId);
+                if (!myPlayer) return;
+
+                const startX = engine.pathfindingManager.toGrid(myPlayer.x);
+                const startY = engine.pathfindingManager.toGrid(myPlayer.y);
+                const endX = engine.pathfindingManager.toGrid(world.x);
+                const endY = engine.pathfindingManager.toGrid(world.y);
+
+                const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
+
+                if (path.length > 0) {
+                    // 1. Локальная анимация
+                    engine.movePlayerAlongPath(room.sessionId, path);
+                    // 2. Отправка на сервер
+                    room.send("movePath", { path: path }); 
+                }
+            });
+        }
     };
 
-    start();
+    launch();
 
     return () => {
-      engine.destroy();
-      engineRef.current = null;
+      isMounted = false;
+      if (engineRef.current) {
+          engineRef.current.destroy();
+          engineRef.current = null;
+      }
     };
   }, [room]);
 
   return (
-    <canvas 
-      ref={canvasRef} 
-      className="block w-full h-full bg-slate-900"
-    />
+    <canvas ref={canvasRef} className="block w-full h-full bg-slate-900" />
   );
 }
