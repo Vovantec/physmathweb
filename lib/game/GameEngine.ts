@@ -73,8 +73,14 @@ export class GameEngine {
             screenHeight: window.innerHeight,
             worldWidth: 4000,
             worldHeight: 4000,
-            events: this.app.renderer.events // Подключаем события Pixi
+            events: this.app.renderer.events
         });
+
+        this.viewport
+            .drag()
+            .pinch()
+            .wheel()
+            .clamp({ direction: 'all' });
 
         this.app.stage.addChild(this.viewport);
 
@@ -344,6 +350,12 @@ export class GameEngine {
 
         room.state.players.onAdd = (player: any, sessionId: string) => {
             this.handlePlayerAdd(player, sessionId);
+
+            const playerContainer = this.players.get(sessionId);
+
+            if (playerContainer && sessionId === room.sessionId) {
+                this.viewport?.follow(playerContainer);
+            }
         };
 
         room.state.players.onRemove = (player: any, sessionId: string) => {
@@ -443,10 +455,24 @@ export class GameEngine {
         container.currentAction = 'stand';
         container.zIndex = data.y;
 
-        if (this.viewport && !this.viewport.destroyed) {
+        if (this.viewport) {
             this.viewport.addChild(container);
         }
         this.players.set(sessionId, container);
+
+        // --- ИСПРАВЛЕНИЕ: Слежение камерой ---
+        // Проверяем, является ли этот игрок "мной"
+        if (this.room && sessionId === this.room.sessionId) {
+            console.log("Camera following my player:", sessionId);
+            
+            // Заставляем viewport следовать за этим контейнером
+            if (this.viewport) {
+                this.viewport.follow(container, {
+                    speed: 0,       // 0 = мгновенно (без задержки)
+                    radius: null,   // null = следить точно по центру
+                });
+            }
+        }
     }
 
     movePlayerAlongPath(sessionId: string, path: number[][]) {

@@ -3,14 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { GameEngine } from '@/lib/game/GameEngine';
 import { Room } from 'colyseus.js';
 import DialogModal from './DialogModal';
-// import { DialogData } from '@/lib/game/types'; // Раскомментируйте, если есть типы
-
-// Временный интерфейс, если нет в types.ts
-interface DialogData {
-  npcName: string;
-  text: string;
-  options: { id: number; text: string }[];
-}
+import InventoryModal from './InventoryModal';
+import { Item, DialogData } from '@/lib/game/types';
 
 interface GameCanvasProps {
   room: Room;
@@ -20,10 +14,16 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
-  // Храним ID NPC, к которому мы идем, в ref (чтобы не вызывать перерисовки)
-  const pendingInteraction = useRef<string | null>(null);
-
+  // --- UI STATE ---
   const [dialogData, setDialogData] = useState<DialogData | null>(null);
+  const pendingInteraction = useRef<string | null>(null);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState<Item[]>([]);
+
+  // Хелпер для проверки соединения
+  const isRoomConnected = () => {
+      return room && room.connection && room.connection.isOpen;
+  };
 
   useEffect(() => {
     if (engineRef.current) return;
@@ -39,14 +39,14 @@ export default function GameCanvas({ room }: GameCanvasProps) {
 
         engine.attachRoom(room);
 
-        // --- 1. КЛИК ПО NPC ---
+        // ==========================================
+        // 1. ЛОГИКА ДИАЛОГОВ (NPC)
+        // ==========================================
+        
         engine.onNpcInteract = (id, x, y) => {
             console.log("React: Clicked NPC, walking to...", id);
-            
-            // Запоминаем, что мы хотим поговорить с этим NPC по прибытии
             pendingInteraction.current = id;
 
-            // Логика движения к цели
             const myPlayer = engine.players.get(room.sessionId);
             if (myPlayer) {
                 const startX = engine.pathfindingManager.toGrid(myPlayer.x);
@@ -55,39 +55,62 @@ export default function GameCanvas({ room }: GameCanvasProps) {
                 const endY = engine.pathfindingManager.toGrid(y);
 
                 const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
-                
                 if (path.length > 0) {
-                    // Убираем последнюю точку (самого NPC), чтобы встать рядом
                     if (path.length > 1) path.pop(); 
-                    
                     engine.movePlayerAlongPath(room.sessionId, path);
-                    room.send("movePath", { path: path }); 
+                    
+                    // БЕЗОПАСНАЯ ОТПРАВКА
+                    if (isRoomConnected()) {
+                        room.send("movePath", { path: path }); 
+                    }
                 } else {
-                    // Если мы уже стоим вплотную - path пустой или короткий.
-                    // Можно сразу открывать диалог.
-                    // Для простоты вызовем "прибытие" вручную или позволим engine.onPlayerArrived сработать (если логика позволяет)
-                    // Но проще просто сразу открыть:
-                    handleOpenDialog(id);
-                    pendingInteraction.current = null;
+                    requestDialog(id);
                 }
             }
         };
 
-        // --- 2. ИГРОК ПРИШЕЛ ---
         engine.onPlayerArrived = () => {
             if (pendingInteraction.current) {
-                console.log("React: Arrived at target, opening dialog:", pendingInteraction.current);
-                handleOpenDialog(pendingInteraction.current);
-                pendingInteraction.current = null; // Сбрасываем цель
+                requestDialog(pendingInteraction.current);
+                pendingInteraction.current = null;
             }
         };
 
-        // --- 3. КЛИК ПО ЗЕМЛЕ ---
+        room.onMessage("dialog", (data: DialogData) => {
+            setDialogData(data);
+        });
+        
+        const requestDialog = (npcId: string) => {
+             if (isRoomConnected()) {
+                 console.log("React: Requesting dialog for:", npcId);
+                 room.send("npcInteract", { id: npcId });
+             } else {
+                 console.warn("Cannot request dialog: Connection lost");
+             }
+        };
+
+
+        // ==========================================
+        // 2. ЛОГИКА ИНВЕНТАРЯ
+        // ==========================================
+
+        room.onMessage("inventory", (items: Item[]) => {
+            console.log("React: Inventory update", items);
+            setInventoryItems(items);
+        });
+
+        if (isRoomConnected()) {
+            room.send("requestInventory");
+        }
+
+        // ==========================================
+        // 3. ОБЩИЕ СОБЫТИЯ (Клик по земле)
+        // ==========================================
+        
         if (engine.viewport) {
             engine.viewport.on('clicked', (e) => {
-                // Если кликнули в пустоту - отменяем намерение говорить
+                setDialogData(null);
                 pendingInteraction.current = null;
-                setDialogData(null); // Закрываем текущее окно
 
                 const world = e.world;
                 const myPlayer = engine.players.get(room.sessionId);
@@ -99,32 +122,36 @@ export default function GameCanvas({ room }: GameCanvasProps) {
                 const endY = engine.pathfindingManager.toGrid(world.y);
 
                 const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
-
                 if (path.length > 0) {
+                    // Локальное движение всегда работает (для плавности)
                     engine.movePlayerAlongPath(room.sessionId, path);
-                    room.send("movePath", { path: path }); 
+                    
+                    // БЕЗОПАСНАЯ ОТПРАВКА НА СЕРВЕР
+                    // Исправление ошибки "WebSocket is already in CLOSING or CLOSED state"
+                    if (isRoomConnected()) {
+                        room.send("movePath", { path: path }); 
+                    } else {
+                        console.warn("Server disconnected. Movement not synced.");
+                    }
                 }
             });
         }
     };
 
-    // Вынесенная функция открытия диалога
-    const handleOpenDialog = (npcId: string) => {
-         setDialogData({
-            npcName: `Страж ${npcId.slice(0, 4)}`,
-            text: `Привет! Я видел, как ты шел ко мне через весь экран. Я NPC с ID: ${npcId}`,
-            options: [
-                { id: 1, text: "Взять квест" },
-                { id: 2, text: "Торговать" },
-                { id: 3, text: "Уйти" }
-            ]
-        });
-    };
-
     launch();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.code === 'KeyI') setIsInventoryOpen(prev => !prev);
+        if (e.code === 'Escape') {
+            setDialogData(null);
+            setIsInventoryOpen(false);
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       isMounted = false;
+      window.removeEventListener('keydown', handleKeyDown);
       if (engineRef.current) {
           engineRef.current.destroy();
           engineRef.current = null;
@@ -132,20 +159,50 @@ export default function GameCanvas({ room }: GameCanvasProps) {
     };
   }, [room]);
 
+  // --- HANDLERS ---
+
+  const handleInventorySwap = (fromPos: number, toPos: number) => {
+      if (isRoomConnected()) {
+          console.log(`Swap request: ${fromPos} -> ${toPos}`);
+          room.send("inventorySwap", { from: fromPos, to: toPos });
+      }
+  };
+
+  const handleDialogOption = (optionId: number) => {
+      if (optionId === -1) { 
+          setDialogData(null);
+          return;
+      }
+      if (isRoomConnected()) {
+          room.send("dialogResponse", { optionId });
+      }
+      setDialogData(null); 
+  };
+
   return (
     <div className="relative w-full h-full">
         <canvas ref={canvasRef} className="block w-full h-full bg-slate-900" />
         
+        {/* Диалоги */}
         {dialogData && (
-            <DialogModal 
-                data={dialogData}
-                onOptionSelect={(id) => {
-                    if (id === 3) setDialogData(null);
-                    // Тут можно добавить логику других кнопок
-                }}
-                onClose={() => setDialogData(null)}
-            />
+            <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+                <div className="pointer-events-auto">
+                    <DialogModal 
+                        data={dialogData}
+                        onOptionSelect={handleDialogOption}
+                        onClose={() => setDialogData(null)}
+                    />
+                </div>
+            </div>
         )}
+
+        {/* Инвентарь */}
+        <InventoryModal 
+            isOpen={isInventoryOpen}
+            inventory={inventoryItems}
+            onClose={() => setIsInventoryOpen(false)}
+            onSwap={handleInventorySwap}
+        />
     </div>
   );
 }
