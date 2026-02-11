@@ -10,14 +10,14 @@ type Direction = 'south' | 'north' | 'west' | 'east';
 type Action = 'stand' | 'walk';
 
 interface PlayerContainer extends PIXI.Container {
-    sprite: PIXI.AnimatedSprite;
+    sprite?: PIXI.AnimatedSprite;
     targetX: number;
     targetY: number;
     pathQueue: number[][];
     speed: number;
     currentDir: Direction;
     currentAction: Action;
-    textures: Record<string, PIXI.Texture[]>;
+    textures?: Record<string, PIXI.Texture[]>;
 }
 
 export class GameEngine {
@@ -29,9 +29,7 @@ export class GameEngine {
     mapManager: MapManager | undefined;
     pathfindingManager: SimplePathfinder;
 
-    // Курсор (хайлайт клетки)
     cursor: PIXI.Graphics | undefined;
-
     players: Map<string, PlayerContainer> = new Map();
     tileSize = 64;
 
@@ -47,9 +45,8 @@ export class GameEngine {
     async init(canvas: HTMLCanvasElement): Promise<boolean> {
         this.isDestroyed = false;
 
-        // 1. Создаем приложение
         this.app = new PIXI.Application();
-
+        // Инициализация PixiJS
         await this.app.init({
             canvas: canvas,
             width: window.innerWidth,
@@ -65,9 +62,9 @@ export class GameEngine {
             return false;
         }
 
-        // 2. Создаем камеру
         if (!this.app.renderer) return false;
 
+        // Настройка камеры (Viewport)
         this.viewport = new Viewport({
             screenWidth: window.innerWidth,
             screenHeight: window.innerHeight,
@@ -83,99 +80,74 @@ export class GameEngine {
             .clamp({ direction: 'all' });
 
         this.app.stage.addChild(this.viewport);
-
-        // Включаем сортировку (Z-Index), чтобы персонажи перекрывали деревья
+        
+        // ВАЖНО: Включаем сортировку детей по zIndex
         this.viewport.sortableChildren = true;
 
         this.viewport.drag().pinch().wheel().decelerate().clamp({ direction: 'all' });
 
-        // 3. Создаем Курсор (Хайлайт)
         this.createCursor();
 
-        // 4. Загрузка Ассетов
         await this.loadAssetsGlobal();
         if (this.isDestroyed) return false;
 
-        // 5. Инициализация карты
+        // Инициализация менеджера карты
         this.mapManager = new MapManager();
         if (!this.viewport.destroyed) {
             this.viewport.addChild(this.mapManager.container);
+            // ВАЖНО: Убираем карту на задний план
+            this.mapManager.container.zIndex = -100;
         }
 
-        // 6. Запускаем игровой цикл
+        // Игровой цикл
         this.app.ticker.add((ticker) => {
             this.updateLoop(ticker.deltaTime);
         });
 
-        // 7. Слушаем движение мыши для обновления курсора
-        // Используем 'pointermove' на stage, чтобы ловить движение везде
+        // Debug logger: Раз в 2 секунды пишем в консоль состояние игрока
+        setInterval(() => {
+            if (this.isDestroyed || !this.room) return;
+            const myPlayer = this.players.get(this.room.sessionId);
+            if (myPlayer) {
+                console.log(`Debug Pos: ${Math.round(myPlayer.x)}:${Math.round(myPlayer.y)} | Z: ${myPlayer.zIndex} | Visible: ${myPlayer.visible}`);
+            }
+        }, 2000);
+
         this.app.stage.eventMode = 'static';
-        this.app.stage.hitArea = this.app.screen; // Вся область экрана активна
+        this.app.stage.hitArea = this.app.screen; 
         this.app.stage.on('pointermove', (e) => this.onPointerMove(e));
-
-        setTimeout(() => {
-            // Используем алиас 'npc_demon', который мы объявили выше
-            //this.createNPC("Assassin_1", "npc_assasin_1", 500, 400);
-
-            // Можно проверить и других:
-            // this.createNPC("dragon_1", "npc_dragon", 700, 400);
-        }, 1000);
 
         window.addEventListener('resize', this.onResize);
         return true;
     }
 
-    // --- ЛОГИКА КУРСОРА ---
     createCursor() {
         if (!this.viewport) return;
-
         this.cursor = new PIXI.Graphics();
-
-        // Рисуем квадрат
         this.cursor.rect(0, 0, this.tileSize, this.tileSize);
-
-        // Стиль:
-        this.cursor.fill({ color: 0xffffff, alpha: 0.2 }); // Чуть поднял прозрачность до 0.2
+        this.cursor.fill({ color: 0xffffff, alpha: 0.2 });
         this.cursor.stroke({ width: 2, color: 0xffffff, alpha: 0.8 });
-
-        // ИСПРАВЛЕНИЕ:
-        // Было -500 (рисовался под картой).
-        // Ставим 1 (рисуется ПОВЕРХ карты, которая имеет 0).
-        // Игроки имеют zIndex = player.y (например, 100, 200...), поэтому они будут ПОВЕРХ курсора.
-        this.cursor.zIndex = 1;
-
+        this.cursor.zIndex = 1000; // Курсор всегда сверху
         this.viewport.addChild(this.cursor);
     }
 
     onPointerMove(e: PIXI.FederatedPointerEvent) {
         if (!this.viewport || !this.cursor || this.isDestroyed) return;
-
-        // 1. Конвертируем координаты экрана (global) в координаты мира (world)
-        // pixi-viewport делает это через toWorld
         const worldPos = this.viewport.toWorld(e.global);
-
-        // 2. Снэппинг к сетке (округляем вниз до ближайшего tileSize)
         const gridX = Math.floor(worldPos.x / this.tileSize);
         const gridY = Math.floor(worldPos.y / this.tileSize);
-
-        // 3. Обновляем позицию
         this.cursor.x = gridX * this.tileSize;
         this.cursor.y = gridY * this.tileSize;
-
-        // Опционально: можно менять цвет курсора, если клетка непроходима
-        // const isWalkable = this.pathfindingManager.isWalkable(gridX, gridY);
-        // this.cursor.tint = isWalkable ? 0xffffff : 0xff0000; 
     }
 
-    // --- ИГРОВОЙ ЦИКЛ ---
     updateLoop(deltaTime: number) {
         if (this.isDestroyed) return;
-
+        
         this.players.forEach((player, sessionId) => {
-            // Передаем sessionId, чтобы узнать, "мой" ли это игрок
             this.processPlayerMovement(player, deltaTime, sessionId);
         });
 
+        // Сортировка слоев каждый кадр (персонажи перекрывают друг друга правильно)
         if (this.viewport && !this.viewport.destroyed && this.app?.ticker?.started) {
             this.viewport.children.sort((a, b) => a.zIndex - b.zIndex);
         }
@@ -190,32 +162,22 @@ export class GameEngine {
             const dx = targetPixelX - player.x;
             const dy = targetPixelY - player.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-
             const moveStep = player.speed * deltaTime;
 
             if (dist <= moveStep) {
-                // Шаг завершен, встаем точно в точку
                 player.x = targetPixelX;
                 player.y = targetPixelY;
-                player.pathQueue.shift(); // Удаляем точку из очереди
+                player.pathQueue.shift();
 
-                // Если очередь опустела — значит мы прибыли!
                 if (player.pathQueue.length === 0) {
                     this.setAnimation(player, 'stand', player.currentDir);
-
-                    // ПРОВЕРКА: Если это МОЙ игрок, вызываем событие прибытия
                     if (this.room && sessionId === this.room.sessionId) {
-                        if (this.onPlayerArrived) {
-                            console.log("Engine: Player arrived at destination");
-                            this.onPlayerArrived();
-                        }
+                        if (this.onPlayerArrived) this.onPlayerArrived();
                     }
                 }
             } else {
-                // Продолжаем движение
                 player.x += (dx / dist) * moveStep;
                 player.y += (dy / dist) * moveStep;
-
                 let newDir = player.currentDir;
                 if (Math.abs(dx) > Math.abs(dy)) {
                     newDir = dx > 0 ? 'east' : 'west';
@@ -225,14 +187,17 @@ export class GameEngine {
                 this.setAnimation(player, 'walk', newDir);
             }
         }
-        player.zIndex = player.y;
+        // Обновляем Z-Index по Y координате.
+        // Добавляем 10, чтобы быть точно выше карты (у которой -100)
+        player.zIndex = player.y + 10; 
     }
 
     setAnimation(player: PlayerContainer, action: Action, dir: Direction) {
         if (player.currentAction === action && player.currentDir === dir) return;
+        if (!player.sprite || !player.textures) return;
 
         const animKey = `${action}_${dir}`;
-        if (player.textures && player.textures[animKey]) {
+        if (player.textures[animKey]) {
             player.sprite.textures = player.textures[animKey];
             player.sprite.play();
             player.currentAction = action;
@@ -241,7 +206,6 @@ export class GameEngine {
     }
 
     async loadAssetsGlobal() {
-        // 1. Обычные спрайты (ваши старые)
         const requiredAssets = [
             { alias: 'warrior', src: '/images/character_sprite/warrior.png' },
             { alias: 'knight', src: '/images/character_sprite/knight.png' },
@@ -250,61 +214,44 @@ export class GameEngine {
             { alias: 'priest', src: '/images/character_sprite/priest.png' }
         ];
 
-        // 2. Spine ассеты берем из реестра
-        const spineAssets = getNpcAssetsToLoad();
+        const spineAssets = getNpcAssetsToLoad() || [];
 
+        // Фильтруем пустые/битые пути, чтобы избежать ошибки <illegal path>
         const assetsToLoad = [
-            ...requiredAssets.filter(a => !PIXI.Assets.cache.has(a.alias)),
-            ...spineAssets.filter(a => !PIXI.Assets.cache.has(a.alias))
-        ];
+            ...requiredAssets,
+            ...spineAssets
+        ].filter(a => a && a.alias && a.src && a.src.trim() !== '' && !PIXI.Assets.cache.has(a.alias));
 
         if (assetsToLoad.length > 0) {
             try {
                 await PIXI.Assets.load(assetsToLoad);
                 console.log("Global Assets loaded");
             } catch (e) {
-                console.warn("Assets loading warning:", e);
+                console.warn("Assets loading warning (some assets failed):", e);
+                // Не прерываем выполнение, играем с тем, что загрузилось
             }
         }
     }
 
     createNPC(id: string, type: string, x: number, y: number) {
         if (this.npcs.has(id)) return;
-
+        
+        // Если ассет не загрузился, используем заглушку, но не крашимся
         if (!PIXI.Assets.cache.has(type)) {
-            console.error(`Assets for NPC '${type}' not found!`);
+            console.warn(`Assets for NPC '${type}' not found, skipping render.`);
             return;
         }
-
+        
         const npc = new NPC(id, type, 0.25);
-
         npc.x = x;
         npc.y = y;
-        npc.zIndex = y;
-
-        // --- ДОБАВЛЕНИЕ КЛИКА ---
+        npc.zIndex = y; // NPC тоже сортируются по Y
+        
         npc.on('pointertap', (e) => {
-            // Предотвращаем клик по карте "сквозь" NPC (stopPropagation)
             e.stopPropagation();
-
-            console.log(`Clicked on NPC: ${id}`);
-
-            // Если React подписался на событие, вызываем его
-            if (this.onNpcInteract) {
-                this.onNpcInteract(id, x, y);
-            }
+            if (this.onNpcInteract) this.onNpcInteract(id, x, y);
         });
-        // ------------------------
-
-        npc.on('interact', (npcId, npcX, npcY) => {
-            console.log(`GameEngine: Event 'interact' received from ${npcId}`);
-
-            // Передаем сигнал наверх в React
-            if (this.onNpcInteract) {
-                this.onNpcInteract(npcId, npcX, npcY);
-            }
-        });
-
+        
         if (this.viewport && !this.viewport.destroyed) {
             this.viewport.addChild(npc);
             this.npcs.set(id, npc);
@@ -315,23 +262,23 @@ export class GameEngine {
         if (this.isDestroyed) return;
         this.room = room;
 
+        console.log("GameEngine: Attaching room...");
+
         room.onMessage("mapData", async (mapData: any[][]) => {
             if (this.isDestroyed || !this.mapManager) return;
-
             this.pathfindingManager.buildGrid(mapData);
-
-            // Очищаем старых NPC перед рендером новой карты
+            
+            // Очищаем NPC
             this.npcs.forEach(npc => {
                 npc.destroy();
                 if (this.viewport) this.viewport.removeChild(npc);
             });
             this.npcs.clear();
-
-            // Передаем callback для создания NPC
+            
             const dims = await this.mapManager.render(mapData, (id, type, x, y) => {
                 this.createNPC(id, type, x, y);
             });
-
+            
             if (this.viewport && !this.viewport.destroyed) {
                 this.viewport.resize(window.innerWidth, window.innerHeight, dims.width, dims.height);
                 this.viewport.plugins.remove('clamp');
@@ -339,23 +286,22 @@ export class GameEngine {
             }
         });
 
+        // Отправляем запрос карты
         room.send("requestMap");
 
+        // Очищаем текущих игроков перед синхронизацией
         this.players.forEach(p => p.destroy());
         this.players.clear();
 
+        // 1. Обработка УЖЕ существующих игроков
         room.state.players.forEach((player: any, sessionId: string) => {
             this.handlePlayerAdd(player, sessionId);
         });
 
+        // 2. Подписка на НОВЫХ игроков
+        // ВАЖНО: Мы переопределяем onAdd, удаляя старые подписки "призрачных" движков
         room.state.players.onAdd = (player: any, sessionId: string) => {
             this.handlePlayerAdd(player, sessionId);
-
-            const playerContainer = this.players.get(sessionId);
-
-            if (playerContainer && sessionId === room.sessionId) {
-                this.viewport?.follow(playerContainer);
-            }
         };
 
         room.state.players.onRemove = (player: any, sessionId: string) => {
@@ -367,13 +313,22 @@ export class GameEngine {
         if (this.isDestroyed) return;
         if (this.players.has(sessionId)) return;
 
-        this.createPlayer(sessionId, playerData);
+        console.log(`GameEngine: Adding player ${sessionId} at ${playerData.x}:${playerData.y}`);
 
+        this.createPlayer(sessionId, playerData);
         const p = this.players.get(sessionId);
 
+        // КАМЕРА: Если это мой игрок
         if (this.room && sessionId === this.room.sessionId) {
             if (p && this.viewport && !this.viewport.destroyed) {
+                console.log("GameEngine: Focusing camera on MY player.");
+                
+                // Сначала прыгаем в точку игрока
+                this.viewport.moveCenter(p.x, p.y);
+                // Потом включаем слежение
                 this.viewport.follow(p, { speed: 0 });
+            } else {
+                console.warn("GameEngine: Could not find player container to follow!");
             }
         }
 
@@ -382,7 +337,7 @@ export class GameEngine {
                 if (p.pathQueue.length === 0) {
                     p.x = playerData.x;
                     p.y = playerData.y;
-                    p.zIndex = playerData.y;
+                    p.zIndex = playerData.y + 10;
                 }
             }
         };
@@ -392,6 +347,12 @@ export class GameEngine {
         if (!PIXI.Assets.cache.has(skinName)) return null;
 
         const baseTexture = PIXI.Assets.get(skinName).source;
+        // Проверка на битую текстуру (404 часто возвращает HTML страницу)
+        if (!baseTexture || baseTexture.width < 10) {
+            console.warn(`Texture ${skinName} seems invalid (width < 10)`);
+            return null;
+        }
+
         const w = this.tileSize; const h = this.tileSize;
         const createAnim = (row: number, colStart: number, count: number) => {
             const textures = [];
@@ -422,6 +383,16 @@ export class GameEngine {
         container.targetX = data.x;
         container.targetY = data.y;
 
+        // --- DEBUG BOX (Красный квадрат) ---
+        // Если спрайт не прогрузится, мы увидим этот квадрат. 
+        // Если видите квадрат - значит координаты верны, но текстуры нет.
+        const debugBox = new PIXI.Graphics();
+        debugBox.rect(-20, -20, 40, 40); // 40x40 px
+        debugBox.fill({ color: 0xFF0000, alpha: 0.5 }); // Красный полупрозрачный
+        debugBox.stroke({ width: 2, color: 0xFFFF00 }); // Желтая рамка
+        container.addChild(debugBox);
+        // -----------------------------------
+
         const classNames = ['warrior', 'knight', 'archer', 'mage', 'priest'];
         const skinIndex = data.skin !== undefined ? data.skin : 0;
         const skinName = classNames[skinIndex] || 'warrior';
@@ -437,9 +408,10 @@ export class GameEngine {
             sprite.play();
             container.sprite = sprite;
             container.addChild(sprite);
+            // Если текстуры есть, скрываем debugBox (или можно оставить для отладки)
+            // debugBox.visible = false; 
         } else {
-            const g = new PIXI.Graphics().circle(0, 0, 20).fill({ color: 0xff0000 });
-            container.addChild(g);
+            console.warn(`Using fallback graphics for player ${data.name}`);
         }
 
         const text = new PIXI.Text({
@@ -453,26 +425,14 @@ export class GameEngine {
         container.y = data.y;
         container.currentDir = 'south';
         container.currentAction = 'stand';
-        container.zIndex = data.y;
+        
+        // Z-Index выше карты
+        container.zIndex = data.y + 10;
 
         if (this.viewport) {
             this.viewport.addChild(container);
         }
         this.players.set(sessionId, container);
-
-        // --- ИСПРАВЛЕНИЕ: Слежение камерой ---
-        // Проверяем, является ли этот игрок "мной"
-        if (this.room && sessionId === this.room.sessionId) {
-            console.log("Camera following my player:", sessionId);
-            
-            // Заставляем viewport следовать за этим контейнером
-            if (this.viewport) {
-                this.viewport.follow(container, {
-                    speed: 0,       // 0 = мгновенно (без задержки)
-                    radius: null,   // null = следить точно по центру
-                });
-            }
-        }
     }
 
     movePlayerAlongPath(sessionId: string, path: number[][]) {
@@ -505,6 +465,16 @@ export class GameEngine {
     destroy() {
         this.isDestroyed = true;
         window.removeEventListener('resize', this.onResize);
+
+        // ВАЖНО: Очищаем колбэки комнаты, чтобы этот "мертвый" движок перестал слушать события
+        if (this.room) {
+            try {
+                this.room.state.players.onAdd = undefined;
+                this.room.state.players.onRemove = undefined;
+                this.room.state.players.onChange = undefined;
+            } catch (e) { console.warn("Error cleaning up room callbacks", e); }
+            this.room = null;
+        }
 
         if (this.app) {
             try {

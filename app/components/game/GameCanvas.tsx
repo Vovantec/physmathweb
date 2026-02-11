@@ -20,12 +20,25 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<Item[]>([]);
 
-  // Хелпер для проверки соединения
   const isRoomConnected = () => {
       return room && room.connection && room.connection.isOpen;
   };
 
   useEffect(() => {
+    // Чистим старые слушатели, чтобы не дублировались
+    room.removeAllListeners();
+
+    // 1. Подписываемся на события UI
+    room.onMessage("dialog", (data: DialogData) => {
+        setDialogData(data);
+    });
+
+    room.onMessage("inventory", (items: Item[]) => {
+        setInventoryItems(items);
+    });
+
+    room.send("requestInventory");
+
     if (engineRef.current) return;
 
     const engine = new GameEngine();
@@ -34,19 +47,24 @@ export default function GameCanvas({ room }: GameCanvasProps) {
 
     const launch = async () => {
         if (!canvasRef.current) return;
+        
+        // Init теперь фильтрует битые ассеты и не крашится
         const success = await engine.init(canvasRef.current);
-        if (!isMounted || !success) return;
+        
+        if (!isMounted || !success) {
+            console.log("GameCanvas: Init aborted or failed");
+            return;
+        }
 
+        // Подключаем комнату только после успешного init
         engine.attachRoom(room);
 
         // ==========================================
-        // 1. ЛОГИКА ДИАЛОГОВ (NPC)
+        // ЛОГИКА ДИАЛОГОВ И ДВИЖЕНИЯ
         // ==========================================
         
         engine.onNpcInteract = (id, x, y) => {
-            console.log("React: Clicked NPC, walking to...", id);
             pendingInteraction.current = id;
-
             const myPlayer = engine.players.get(room.sessionId);
             if (myPlayer) {
                 const startX = engine.pathfindingManager.toGrid(myPlayer.x);
@@ -58,11 +76,7 @@ export default function GameCanvas({ room }: GameCanvasProps) {
                 if (path.length > 0) {
                     if (path.length > 1) path.pop(); 
                     engine.movePlayerAlongPath(room.sessionId, path);
-                    
-                    // БЕЗОПАСНАЯ ОТПРАВКА
-                    if (isRoomConnected()) {
-                        room.send("movePath", { path: path }); 
-                    }
+                    if (isRoomConnected()) room.send("movePath", { path: path }); 
                 } else {
                     requestDialog(id);
                 }
@@ -76,42 +90,14 @@ export default function GameCanvas({ room }: GameCanvasProps) {
             }
         };
 
-        room.onMessage("dialog", (data: DialogData) => {
-            setDialogData(data);
-        });
-        
         const requestDialog = (npcId: string) => {
-             if (isRoomConnected()) {
-                 console.log("React: Requesting dialog for:", npcId);
-                 room.send("npcInteract", { id: npcId });
-             } else {
-                 console.warn("Cannot request dialog: Connection lost");
-             }
+             if (isRoomConnected()) room.send("npcInteract", { id: npcId });
         };
 
-
-        // ==========================================
-        // 2. ЛОГИКА ИНВЕНТАРЯ
-        // ==========================================
-
-        room.onMessage("inventory", (items: Item[]) => {
-            console.log("React: Inventory update", items);
-            setInventoryItems(items);
-        });
-
-        if (isRoomConnected()) {
-            room.send("requestInventory");
-        }
-
-        // ==========================================
-        // 3. ОБЩИЕ СОБЫТИЯ (Клик по земле)
-        // ==========================================
-        
         if (engine.viewport) {
             engine.viewport.on('clicked', (e) => {
                 setDialogData(null);
                 pendingInteraction.current = null;
-
                 const world = e.world;
                 const myPlayer = engine.players.get(room.sessionId);
                 if (!myPlayer) return;
@@ -123,16 +109,8 @@ export default function GameCanvas({ room }: GameCanvasProps) {
 
                 const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
                 if (path.length > 0) {
-                    // Локальное движение всегда работает (для плавности)
                     engine.movePlayerAlongPath(room.sessionId, path);
-                    
-                    // БЕЗОПАСНАЯ ОТПРАВКА НА СЕРВЕР
-                    // Исправление ошибки "WebSocket is already in CLOSING or CLOSED state"
-                    if (isRoomConnected()) {
-                        room.send("movePath", { path: path }); 
-                    } else {
-                        console.warn("Server disconnected. Movement not synced.");
-                    }
+                    if (isRoomConnected()) room.send("movePath", { path: path }); 
                 }
             });
         }
@@ -152,20 +130,17 @@ export default function GameCanvas({ room }: GameCanvasProps) {
     return () => {
       isMounted = false;
       window.removeEventListener('keydown', handleKeyDown);
+      room.removeAllListeners(); // Очистка onMessage
+      
       if (engineRef.current) {
-          engineRef.current.destroy();
+          engineRef.current.destroy(); // Внутри GameEngine.destroy() теперь чистятся onAdd/onChange
           engineRef.current = null;
       }
     };
   }, [room]);
 
-  // --- HANDLERS ---
-
   const handleInventorySwap = (fromPos: number, toPos: number) => {
-      if (isRoomConnected()) {
-          console.log(`Swap request: ${fromPos} -> ${toPos}`);
-          room.send("inventorySwap", { from: fromPos, to: toPos });
-      }
+      if (isRoomConnected()) room.send("inventorySwap", { from: fromPos, to: toPos });
   };
 
   const handleDialogOption = (optionId: number) => {
@@ -173,9 +148,7 @@ export default function GameCanvas({ room }: GameCanvasProps) {
           setDialogData(null);
           return;
       }
-      if (isRoomConnected()) {
-          room.send("dialogResponse", { optionId });
-      }
+      if (isRoomConnected()) room.send("dialogResponse", { optionId });
       setDialogData(null); 
   };
 
@@ -183,7 +156,6 @@ export default function GameCanvas({ room }: GameCanvasProps) {
     <div className="relative w-full h-full">
         <canvas ref={canvasRef} className="block w-full h-full bg-slate-900" />
         
-        {/* Диалоги */}
         {dialogData && (
             <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
                 <div className="pointer-events-auto">
@@ -196,7 +168,6 @@ export default function GameCanvas({ room }: GameCanvasProps) {
             </div>
         )}
 
-        {/* Инвентарь */}
         <InventoryModal 
             isOpen={isInventoryOpen}
             inventory={inventoryItems}

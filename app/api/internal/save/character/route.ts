@@ -8,27 +8,42 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { userId, level, exp, hp, x, y } = await request.json();
+    const body = await request.json();
+    
+    // Поддержка разных форматов: characterId или userId
+    const characterId = body.characterId;
+    const userId = body.userId;
 
-    // Преобразуем координаты в строку "x-y"
-    const arrMap = `${x}-${y}`;
+    let arrMap = body.arrMap;
 
-    // Обновляем персонажа по Telegram ID пользователя
-    // Используем updateMany, так как findFirst для update требует уникального поля, 
-    // а userId в Character не уникален (теоретически может быть несколько чаров)
-    // Но так как у нас фильтр active: true, это безопасно
-    await prisma.character.updateMany({
-      where: { 
-        userId: BigInt(userId), 
-        active: true 
-      },
-      data: {
-        level: Number(level),
-        exp: Number(exp),
-        hp: Number(hp),
-        arrMap: arrMap
-      }
-    });
+    // Если arrMap не передан, но переданы x/y - пробуем собрать (fallback)
+    if (!arrMap && body.x !== undefined && body.y !== undefined) {
+        arrMap = `${body.x}-${body.y}`;
+    }
+
+    const updateData: any = {};
+    if (body.level !== undefined) updateData.level = Number(body.level);
+    if (body.exp !== undefined) updateData.exp = Number(body.exp);
+    if (body.hp !== undefined) updateData.hp = Number(body.hp);
+    if (arrMap) updateData.arrMap = arrMap;
+    if (body.inventory) updateData.inventory = body.inventory;
+
+    // ОБНОВЛЕНИЕ
+    if (characterId) {
+        // Если есть ID персонажа - обновляем точечно (самый надежный способ)
+        await prisma.character.update({
+            where: { id: Number(characterId) },
+            data: updateData
+        });
+    } else if (userId) {
+        // Fallback: обновление по userId (менее точно)
+        await prisma.character.updateMany({
+            where: { userId: BigInt(userId), active: true },
+            data: updateData
+        });
+    } else {
+        return NextResponse.json({ error: 'Missing characterId or userId' }, { status: 400 });
+    }
 
     return NextResponse.json({ success: true });
 
