@@ -22,15 +22,15 @@ export default function AdminDashboard() {
         </div>
 
         {/* Карточка 2 (Заглушка на будущее) */}
-        <div className="bg-[#1a1a1a] border border-white/5 p-8 rounded-xl shadow-xl opacity-50 grayscale">
-          <div className="text-4xl mb-4">👥</div>
+        <div className="bg-[#1a1a1a] border border-white/10 p-8 rounded-xl shadow-xl hover:border-white/30 transition group">
+          <div className="text-4xl mb-4 group-hover:scale-110 transition-transform origin-left">👥</div>
           <h3 className="text-xl font-bold uppercase tracking-widest mb-2">Студенты</h3>
           <p className="text-sm font-mono text-gray-500 leading-relaxed mb-6">
             Статистика учеников, их баллы и прогресс по домашним заданиям.
           </p>
-          <span className="inline-block text-xs font-bold font-mono text-gray-500 uppercase tracking-widest border border-white/10 px-4 py-2 rounded">
-            В разработке
-          </span>
+          <a href="/admin/students" className="inline-block text-xs font-bold font-mono text-blue-400 uppercase tracking-widest border border-blue-400/50 hover:bg-blue-400 hover:text-black px-4 py-2 rounded transition">
+            Перейти к базе →
+          </a>
         </div>
       </div>
     </div>

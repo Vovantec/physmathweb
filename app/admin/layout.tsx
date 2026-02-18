@@ -27,6 +27,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <span>📚</span> Управление курсами
           </Link>
+
+          <Link 
+            href="/admin/students" 
+            className="px-5 py-4 rounded-lg bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 transition font-mono text-sm flex items-center gap-3"
+          >
+            <span>👥</span> База студентов
+          </Link>
           
           <div className="mt-auto pt-6 border-t border-white/5">
             <Link 
