@@ -25,7 +25,7 @@ class GameNetwork {
         // Универсальное подключение для physmathlab.ru и любого другого домена
         // Автоматически подбирает wss:// для защищенного соединения
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        endpoint = `ws://${hostname}:2567`;
+        endpoint = `${protocol}://${hostname}:2567`;
       }
     } else if (!endpoint) {
       // Резервный вариант, если вдруг вызывается вне браузера
