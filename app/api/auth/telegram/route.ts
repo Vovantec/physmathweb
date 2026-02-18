@@ -23,6 +23,9 @@ export async function POST(request: Request) {
     const secretKey = crypto.createHash('sha256').update(token).digest();
     const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
+    console.log("Ожидаемый хэш:", hmac, "| Полученный:", hash);
+    console.log("Использован токен бота:", process.env.BOT_TOKEN?.substring(0, 10) + "...");
+
     if (hmac !== hash) {
       return NextResponse.json({ error: 'Неверные данные (подпись не совпала)' }, { status: 401 });
     }

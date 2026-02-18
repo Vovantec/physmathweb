@@ -29,10 +29,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         include: {
           lessons: {
             include: {
-                attempts: targetTgId ? {
-                    where: { userId: targetTgId },
-                    select: { percent: true, id: true }
-                } : false
+              attempts: targetTgId ? {
+                  where: { userId: targetTgId },
+                  select: { percent: true, id: true }
+              } : false
             }
           }
         }

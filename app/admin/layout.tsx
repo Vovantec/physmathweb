@@ -1,41 +1,55 @@
-import { checkAdminAuth } from '@/lib/admin-auth';
-import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import React from 'react';
 
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Вызываем нашу проверку
-  const isAdmin = await checkAdminAuth();
-
-  // Если не админ — редирект на главную (или на страницу входа)
-  if (!isAdmin) {
-    redirect('/'); 
-  }
-
-  // Если админ — показываем интерфейс
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex">
-      {/* Боковая панель */}
-      <aside className="w-64 bg-gray-800 p-4 border-r border-gray-700 hidden md:block">
-        <h2 className="text-xl font-bold mb-6 text-purple-400">PhysMath Admin</h2>
-        <nav className="space-y-2">
-          <a href="/admin/courses" className="block p-2 hover:bg-gray-700 rounded transition">
-            📚 Курсы
-          </a>
-          <div className="border-t border-gray-700 my-2 pt-2">
-            <a href="/" className="block p-2 text-gray-400 hover:text-white transition">
+    <div className="min-h-screen bg-[#121212] text-white font-sans flex flex-col md:flex-row selection:bg-yellow-400 selection:text-black">
+      
+      {/* Боковое меню */}
+      <aside className="w-full md:w-72 bg-[#1a1a1a] border-b md:border-b-0 md:border-r border-white/10 flex flex-col shadow-2xl z-10 relative">
+        <div className="p-8 border-b border-white/5">
+          <h2 className="text-2xl font-extrabold uppercase tracking-widest flex items-center gap-3">
+            <span className="text-yellow-400">⚡</span> АДМИН
+          </h2>
+          <p className="text-xs text-gray-500 font-mono mt-2 tracking-wider">ПАНЕЛЬ УПРАВЛЕНИЯ</p>
+        </div>
+        
+        <nav className="flex flex-col gap-2 flex-grow p-6">
+          <Link 
+            href="/admin" 
+            className="px-5 py-4 rounded-lg bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 transition font-mono text-sm flex items-center gap-3"
+          >
+            <span>📊</span> Сводка
+          </Link>
+          <Link 
+            href="/admin/courses" 
+            className="px-5 py-4 rounded-lg bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 transition font-mono text-sm flex items-center gap-3"
+          >
+            <span>📚</span> Управление курсами
+          </Link>
+          
+          <div className="mt-auto pt-6 border-t border-white/5">
+            <Link 
+              href="/" 
+              className="px-5 py-4 w-full block text-center rounded-lg border border-dashed border-white/20 hover:border-yellow-400 text-gray-400 hover:text-yellow-400 transition font-mono text-sm uppercase tracking-widest"
+            >
               ← На сайт
-            </a>
+            </Link>
           </div>
         </nav>
       </aside>
 
       {/* Основной контент */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-        {children}
+      <main className="flex-grow h-screen overflow-y-auto relative">
+        {/* Декоративный фоновый паттерн */}
+        <div className="absolute inset-0 opacity-5 pointer-events-none" 
+             style={{backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '40px 40px'}}>
+        </div>
+        <div className="relative z-10 p-6 md:p-12 max-w-7xl mx-auto">
+          {children}
+        </div>
       </main>
+      
     </div>
   );
 }

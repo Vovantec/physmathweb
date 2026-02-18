@@ -1,73 +1,105 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
-export default function AdminCoursesPage() {
+export default function AdminCoursesList() {
   const [courses, setCourses] = useState<any[]>([]);
-  const [newCourse, setNewCourse] = useState({ title: '', description: '' });
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  // Загрузка курсов
   const fetchCourses = async () => {
-    const res = await fetch('/api/admin/courses'); // GET метод (надо добавить в route.ts выше)
+    const res = await fetch('/api/courses');
     if (res.ok) setCourses(await res.json());
+    setLoading(false);
   };
 
   useEffect(() => { fetchCourses(); }, []);
 
-  // Создание курса
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCourse.title) return;
-
+  const addCourse = async () => {
+    if (!title) return;
     await fetch('/api/admin/courses', {
       method: 'POST',
-      body: JSON.stringify(newCourse),
+      body: JSON.stringify({ title, description }),
+      headers: { 'Content-Type': 'application/json' }
     });
-    
-    setNewCourse({ title: '', description: '' });
+    setTitle('');
+    setDescription('');
     fetchCourses();
   };
 
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 text-white font-mono animate-pulse">
+      ... ЗАГРУЗКА СПИСКА КУРСОВ ...
+    </div>
+  );
+
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-8">Управление курсами</h1>
-      
-      {/* Форма создания */}
-      <div className="bg-gray-800 p-6 rounded-lg mb-8 max-w-2xl">
-        <h2 className="text-xl mb-4">Добавить новый курс</h2>
-        <form onSubmit={handleCreate} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Название курса"
-            className="w-full p-2 bg-gray-700 rounded text-white"
-            value={newCourse.title}
-            onChange={e => setNewCourse({...newCourse, title: e.target.value})}
+      <h1 className="text-3xl md:text-4xl font-extrabold uppercase tracking-tight mb-8">
+        Управление курсами
+      </h1>
+
+      {/* Форма создания курса */}
+      <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 mb-12 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-1 h-full bg-yellow-400"></div>
+        <h2 className="text-lg font-bold uppercase tracking-widest text-white mb-6">Создать новый курс</h2>
+        
+        <div className="flex flex-col gap-4">
+          <input 
+            className="w-full bg-black/40 border border-white/10 rounded-lg p-4 text-white focus:border-yellow-400 focus:outline-none transition font-mono"
+            placeholder="Название курса (например: ЕГЭ Математика 2026)" 
+            value={title}
+            onChange={e => setTitle(e.target.value)}
           />
-          <textarea
-            placeholder="Описание"
-            className="w-full p-2 bg-gray-700 rounded text-white"
-            value={newCourse.description}
-            onChange={e => setNewCourse({...newCourse, description: e.target.value})}
+          <textarea 
+            className="w-full bg-black/40 border border-white/10 rounded-lg p-4 text-white focus:border-yellow-400 focus:outline-none transition font-mono min-h-[100px] resize-y"
+            placeholder="Краткое описание курса..." 
+            value={description}
+            onChange={e => setDescription(e.target.value)}
           />
-          <button type="submit" className="bg-purple-600 px-4 py-2 rounded hover:bg-purple-500">
-            Создать курс
+          <button 
+            onClick={addCourse}
+            className="self-start bg-white text-black font-extrabold uppercase tracking-widest px-8 py-4 rounded-lg hover:bg-yellow-400 transition transform active:scale-95 mt-2"
+          >
+            + Сохранить курс
           </button>
-        </form>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 mb-8">
+        <h2 className="text-2xl font-bold uppercase tracking-widest">Существующие курсы</h2>
+        <div className="h-px bg-white/20 flex-grow"></div>
       </div>
 
       {/* Список курсов */}
-      <div className="grid gap-4">
-        {courses.map(course => (
-          <div key={course.id} className="bg-gray-800 p-4 rounded border border-gray-700 flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-lg">{course.title}</h3>
-              <p className="text-gray-400 text-sm">{course.description}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {courses.length === 0 && (
+          <div className="col-span-full text-center py-12 border border-dashed border-white/10 rounded-xl">
+            <p className="text-gray-500 font-mono">Курсов пока нет. Создайте первый курс выше.</p>
+          </div>
+        )}
+
+        {courses.map((course: any) => (
+          <div key={course.id} className="bg-[#1a1a1a] border border-white/10 p-6 rounded-xl hover:border-white/40 transition flex flex-col group shadow-lg">
+            <h3 className="text-2xl font-bold mb-3 text-white uppercase tracking-tight group-hover:text-yellow-400 transition">
+              {course.title}
+            </h3>
+            <p className="text-gray-400 font-mono text-sm leading-relaxed mb-6 flex-grow">
+              {course.description || "Без описания"}
+            </p>
+            
+            <div className="flex justify-between items-center pt-4 border-t border-white/5">
+              <span className="text-xs font-mono text-gray-500 bg-black/50 px-3 py-1.5 rounded">
+                ID: {course.id}
+              </span>
+              <Link 
+                href={`/admin/courses/${course.id}`} 
+                className="text-xs font-bold uppercase tracking-widest bg-white/10 text-white hover:bg-white hover:text-black px-5 py-2.5 rounded transition"
+              >
+                Редактировать
+              </Link>
             </div>
-            <a 
-              href={`/admin/courses/${course.id}`} 
-              className="bg-blue-600 px-3 py-1 rounded text-sm hover:bg-blue-500"
-            >
-              Управлять задачами →
-            </a>
           </div>
         ))}
       </div>
