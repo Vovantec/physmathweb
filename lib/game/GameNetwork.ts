@@ -5,18 +5,8 @@ class GameNetwork {
   room: Colyseus.Room | null = null;
 
   constructor() {
-    let endpoint = process.env.NEXT_PUBLIC_GAME_SERVER_URL;
-    
-    // Если переменная не задана в .env, динамически подставляем текущий домен
-    if (!endpoint && typeof window !== 'undefined') {
-      // Если сайт на https, используем защищенный wss://, иначе ws://
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      // Берем текущий домен (например, physmathlab.ru) и добавляем порт 2567
-      endpoint = `${protocol}://${window.location.hostname}:2567`;
-    } else if (!endpoint) {
-      endpoint = "ws://localhost:2567";
-    }
-
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const endpoint = `${protocol}://${window.location.hostname}:2567`;
     this.client = new Colyseus.Client(endpoint);
   }
 
