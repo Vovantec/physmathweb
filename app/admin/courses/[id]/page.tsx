@@ -49,25 +49,36 @@ export default function CourseManagerPage() {
   };
 
   const addQuestion = async (lessonId: number) => {
-    if (!newQuestion.answer || newQuestion.lessonId !== lessonId) return;
+    if (!newQuestion.content || !newQuestion.answer || newQuestion.lessonId !== lessonId) {
+        alert("Пожалуйста, заполните текст задачи и ответ!");
+        return;
+    }
     
-    // Отправляем данные на наш новый API-роут
-    await fetch('/api/admin/questions', {
-      method: 'POST',
-      body: JSON.stringify({ 
-         type: newQuestion.type,
-         content: newQuestion.content,
-         answer: newQuestion.answer,
-         videoUrl: newQuestion.videoUrl || null,
-         imageUrl: newQuestion.imageUrl || null,
-         lessonId: lessonId 
-      }),
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    // Очищаем форму
-    setNewQuestion({ type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: 0 });
-    fetchCourseData(); // Обновляем данные на странице
+    try {
+        const res = await fetch('/api/admin/questions', {
+          method: 'POST',
+          body: JSON.stringify({ 
+             type: newQuestion.type,
+             content: newQuestion.content,
+             answer: newQuestion.answer,
+             videoUrl: newQuestion.videoUrl || null,
+             imageUrl: newQuestion.imageUrl || null,
+             lessonId: lessonId 
+          }),
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!res.ok) {
+            alert("Ошибка при сохранении задачи! Убедитесь, что создан файл API.");
+            return;
+        }
+        
+        setNewQuestion({ type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: 0 });
+        fetchCourseData(); // Обновляем данные на странице
+    } catch (error) {
+        console.error(error);
+        alert("Ошибка сети при отправке задачи");
+    }
   };
 
   if (loading) return (

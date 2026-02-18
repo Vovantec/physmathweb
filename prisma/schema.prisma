@@ -51,7 +51,7 @@ model Question {
   type      String  // "option" или "value"
   answer    String
   content   String?
-  videoUrl  String? 
+  videoUrl  String?
   imageUrl  String?
   lessonId  Int
   lesson    Lesson  @relation(fields: [lessonId], references: [id])
