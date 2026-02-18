@@ -14,27 +14,19 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
-  // --- UI STATE ---
   const [dialogData, setDialogData] = useState<DialogData | null>(null);
-  const pendingInteraction = useRef<string | null>(null);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<Item[]>([]);
 
-  const isRoomConnected = () => {
-      return room && room.connection && room.connection.isOpen;
-  };
+  const isRoomConnected = () => room && room.connection && room.connection.isOpen;
 
   useEffect(() => {
-    // Чистим старые слушатели, чтобы не дублировались
     room.removeAllListeners();
 
-    // 1. Подписываемся на события UI
-    room.onMessage("dialog", (data: DialogData) => {
-        setDialogData(data);
-    });
-
-    room.onMessage("inventory", (items: Item[]) => {
-        setInventoryItems(items);
+    room.onMessage("dialog", (data: DialogData) => setDialogData(data));
+    room.onMessage("inventory", (items: Item[]) => setInventoryItems(items));
+    room.onMessage("notification", (data: {text: string, color: string}) => {
+        console.log("Notification:", data.text); 
     });
 
     room.send("requestInventory");
@@ -47,73 +39,43 @@ export default function GameCanvas({ room }: GameCanvasProps) {
 
     const launch = async () => {
         if (!canvasRef.current) return;
-        
-        // Init теперь фильтрует битые ассеты и не крашится
         const success = await engine.init(canvasRef.current);
-        
-        if (!isMounted || !success) {
-            console.log("GameCanvas: Init aborted or failed");
-            return;
-        }
+        if (!isMounted || !success) return;
 
-        // Подключаем комнату только после успешного init
         engine.attachRoom(room);
 
-        // ==========================================
-        // ЛОГИКА ДИАЛОГОВ И ДВИЖЕНИЯ
-        // ==========================================
-        
+        // 1. Клик по мобу
+        engine.onMobInteract = (id: string) => {
+            console.log("React: Start battle with", id);
+            if (isRoomConnected()) {
+                room.send("startBattle", { mobId: id });
+            }
+        };
+
+        // 2. Клик по NPC
         engine.onNpcInteract = (id, x, y) => {
-            pendingInteraction.current = id;
+            if (isRoomConnected()) room.send("npcInteract", { id });
+        };
+
+        // 3. Клик по ЗЕМЛЕ (Фон)
+        engine.onGroundClick = (x: number, y: number) => {
+            setDialogData(null); 
+
             const myPlayer = engine.players.get(room.sessionId);
-            if (myPlayer) {
-                const startX = engine.pathfindingManager.toGrid(myPlayer.x);
-                const startY = engine.pathfindingManager.toGrid(myPlayer.y);
-                const endX = engine.pathfindingManager.toGrid(x);
-                const endY = engine.pathfindingManager.toGrid(y);
+            if (!myPlayer) return;
 
-                const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
-                if (path.length > 0) {
-                    if (path.length > 1) path.pop(); 
-                    engine.movePlayerAlongPath(room.sessionId, path);
-                    if (isRoomConnected()) room.send("movePath", { path: path }); 
-                } else {
-                    requestDialog(id);
-                }
+            const startX = engine.pathfindingManager.toGrid(myPlayer.x);
+            const startY = engine.pathfindingManager.toGrid(myPlayer.y);
+            const endX = engine.pathfindingManager.toGrid(x);
+            const endY = engine.pathfindingManager.toGrid(y);
+
+            const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
+            if (path.length > 0) {
+                if (path.length > 1) path.pop(); 
+                engine.movePlayerAlongPath(room.sessionId, path);
+                if (isRoomConnected()) room.send("movePath", { path });
             }
         };
-
-        engine.onPlayerArrived = () => {
-            if (pendingInteraction.current) {
-                requestDialog(pendingInteraction.current);
-                pendingInteraction.current = null;
-            }
-        };
-
-        const requestDialog = (npcId: string) => {
-             if (isRoomConnected()) room.send("npcInteract", { id: npcId });
-        };
-
-        if (engine.viewport) {
-            engine.viewport.on('clicked', (e) => {
-                setDialogData(null);
-                pendingInteraction.current = null;
-                const world = e.world;
-                const myPlayer = engine.players.get(room.sessionId);
-                if (!myPlayer) return;
-
-                const startX = engine.pathfindingManager.toGrid(myPlayer.x);
-                const startY = engine.pathfindingManager.toGrid(myPlayer.y);
-                const endX = engine.pathfindingManager.toGrid(world.x);
-                const endY = engine.pathfindingManager.toGrid(world.y);
-
-                const path = engine.pathfindingManager.findPath(startX, startY, endX, endY);
-                if (path.length > 0) {
-                    engine.movePlayerAlongPath(room.sessionId, path);
-                    if (isRoomConnected()) room.send("movePath", { path: path }); 
-                }
-            });
-        }
     };
 
     launch();
@@ -130,10 +92,9 @@ export default function GameCanvas({ room }: GameCanvasProps) {
     return () => {
       isMounted = false;
       window.removeEventListener('keydown', handleKeyDown);
-      room.removeAllListeners(); // Очистка onMessage
-      
+      room.removeAllListeners();
       if (engineRef.current) {
-          engineRef.current.destroy(); // Внутри GameEngine.destroy() теперь чистятся onAdd/onChange
+          engineRef.current.destroy();
           engineRef.current = null;
       }
     };
@@ -144,10 +105,7 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   };
 
   const handleDialogOption = (optionId: number) => {
-      if (optionId === -1) { 
-          setDialogData(null);
-          return;
-      }
+      if (optionId === -1) { setDialogData(null); return; }
       if (isRoomConnected()) room.send("dialogResponse", { optionId });
       setDialogData(null); 
   };
@@ -155,7 +113,6 @@ export default function GameCanvas({ room }: GameCanvasProps) {
   return (
     <div className="relative w-full h-full">
         <canvas ref={canvasRef} className="block w-full h-full bg-slate-900" />
-        
         {dialogData && (
             <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
                 <div className="pointer-events-auto">
@@ -167,7 +124,6 @@ export default function GameCanvas({ room }: GameCanvasProps) {
                 </div>
             </div>
         )}
-
         <InventoryModal 
             isOpen={isInventoryOpen}
             inventory={inventoryItems}
