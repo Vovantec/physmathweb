@@ -14,7 +14,8 @@ export default function CourseManagerPage() {
   const [newQuestion, setNewQuestion] = useState({ type: 'value', content: '', answer: '', videoUrl: '', lessonId: 0 });
 
   const fetchCourseData = async () => {
-    const res = await fetch(`/api/courses/${id}`); // Проверьте, что роут правильный
+    const res = await fetch(`/api/admin/courses/${id}`); 
+    
     if (res.ok) {
         setCourse(await res.json());
     }
