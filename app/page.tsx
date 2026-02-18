@@ -86,11 +86,16 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center p-8 bg-[#121212] text-white">
       <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-16 border-b border-white/20 pb-6">
         <div className="flex items-center gap-3">
-            <span className="text-4xl">⚛️</span>
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter uppercase font-sans">
-                PHYSICS <span className="text-gray-500">&</span> MATH
-            </h1>
-        </div>
+          <span className="text-4xl md:text-5xl">⚛️</span>
+          <h1 className="flex flex-col tracking-tighter uppercase font-sans">
+              <span className="text-xs md:text-sm text-yellow-400 font-bold tracking-[0.3em] mb-1 ml-1 opacity-90">
+                  by Шевелев
+              </span>
+              <span className="text-4xl md:text-5xl font-extrabold text-white leading-none">
+                  ФИЗ<span className="text-gray-500">МАТ</span>
+              </span>
+          </h1>
+      </div>
         
         <div className="flex gap-6 items-center mt-6 md:mt-0">
             {/* Показываем кнопку админки только если user.isAdmin === true */}
@@ -152,7 +157,7 @@ export default function Home() {
                    
                    <h2 className="text-3xl font-extrabold uppercase tracking-tight mb-4">Доступ закрыт</h2>
                    <p className="text-gray-400 mb-8 font-mono text-sm leading-relaxed">
-                       Материалы курса доступны только зарегистрированным студентам. Пожалуйста, авторизуйтесь через Telegram, чтобы войти в лабораторию.
+                       Материалы курса доступны только зарегистрированным студентам. Пожалуйста, авторизуйтесь через Telegram.
                    </p>
                    
                    <div className="flex justify-center transform scale-110">

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Лаборатория ФизМат",
+  title: "ФизМат by Шевелев",
   description: "Курсы подготовки к ЕГЭ и ОГЭ",
 };
 
