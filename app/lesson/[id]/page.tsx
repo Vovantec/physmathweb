@@ -7,7 +7,8 @@ interface Question {
   id: number;
   type: string;
   content: string | null;
-  videoUrl?: string | null; // Добавлено поле для видеоразбора
+  videoUrl?: string | null;
+  imageUrl?: string | null;
 }
 
 interface Attempt {
@@ -320,7 +321,26 @@ export default function LessonPage() {
                         
                         <div className="mb-4">
                             <p className="font-medium text-lg text-gray-200">
-                                {q.content || `Вопрос №${idx + 1}`}
+                                <div className="mb-4">
+                                    <p className="font-medium text-lg text-gray-200">
+                                        {q.content || `Вопрос №${idx + 1}`}
+                                    </p>
+                                    
+                                    {/* ОТОБРАЖЕНИЕ КАРТИНКИ СТУДЕНТУ */}
+                                    {q.imageUrl && (
+                                        <div className="mt-4 mb-2">
+                                            <img 
+                                                src={q.imageUrl} 
+                                                alt={`Иллюстрация к задаче ${idx + 1}`} 
+                                                className="max-h-96 rounded-xl border border-white/10 shadow-2xl object-contain bg-black/40" 
+                                            />
+                                        </div>
+                                    )}
+
+                                    <span className="text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded inline-block mt-2">
+                                        {q.type === 'option' ? 'ВЫБОР ВАРИАНТА' : 'ВВОД ЗНАЧЕНИЯ'}
+                                    </span>
+                                </div>
                             </p>
                             <span className="text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded inline-block mt-2">
                                 {q.type === 'option' ? 'ВЫБОР ВАРИАНТА' : 'ВВОД ЗНАЧЕНИЯ'}

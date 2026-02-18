@@ -11,11 +11,13 @@ export default function CourseManagerPage() {
   // Формы
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newLesson, setNewLesson] = useState({ title: '', videoUrl: '', taskId: 0 });
-  const [newQuestion, setNewQuestion] = useState({ type: 'value', content: '', answer: '', videoUrl: '', lessonId: 0 });
+  
+  // Форма добавления задачи в ДЗ (с картинками и видео)
+  const [newQuestion, setNewQuestion] = useState({ type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: 0 });
 
   const fetchCourseData = async () => {
+    // Берем данные из защищенного админского API, чтобы видеть ДЗ
     const res = await fetch(`/api/admin/courses/${id}`); 
-    
     if (res.ok) {
         setCourse(await res.json());
     }
@@ -48,6 +50,8 @@ export default function CourseManagerPage() {
 
   const addQuestion = async (lessonId: number) => {
     if (!newQuestion.answer || newQuestion.lessonId !== lessonId) return;
+    
+    // Отправляем данные на наш новый API-роут
     await fetch('/api/admin/questions', {
       method: 'POST',
       body: JSON.stringify({ 
@@ -55,12 +59,15 @@ export default function CourseManagerPage() {
          content: newQuestion.content,
          answer: newQuestion.answer,
          videoUrl: newQuestion.videoUrl || null,
+         imageUrl: newQuestion.imageUrl || null,
          lessonId: lessonId 
       }),
       headers: { 'Content-Type': 'application/json' }
     });
-    setNewQuestion({ type: 'value', content: '', answer: '', videoUrl: '', lessonId: 0 });
-    fetchCourseData();
+    
+    // Очищаем форму
+    setNewQuestion({ type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: 0 });
+    fetchCourseData(); // Обновляем данные на странице
   };
 
   if (loading) return (
@@ -82,14 +89,11 @@ export default function CourseManagerPage() {
             href="/admin/courses" 
             className="inline-block mb-8 text-sm font-bold uppercase tracking-widest text-gray-500 hover:text-white transition border-b border-transparent hover:border-white pb-1"
         >
-          ← Назад к списку курсов (Админ)
+          ← Назад к списку курсов
         </Link>
 
         {/* Заголовок курса */}
         <div className="bg-[#1a1a1a] border-2 border-white/10 rounded-xl p-8 mb-12 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-6 opacity-5">
-             <svg width="100" height="100" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-          </div>
           <h1 className="text-4xl md:text-5xl font-extrabold uppercase tracking-tight mb-4 text-yellow-400">
             {course.title}
           </h1>
@@ -167,7 +171,7 @@ export default function CourseManagerPage() {
                     <div className="pl-6 border-l-2 border-white/10 space-y-3 mb-6">
                       <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Домашнее задание:</h4>
                       
-                      {lesson.questions?.length === 0 ? (
+                      {(!lesson.questions || lesson.questions.length === 0) ? (
                         <p className="text-gray-600 text-sm font-mono italic bg-white/5 p-3 rounded border border-dashed border-white/10">Задачи еще не добавлены</p>
                       ) : (
                         lesson.questions?.map((q: any, idx: number) => (
@@ -183,8 +187,22 @@ export default function CourseManagerPage() {
                                 </span>
                               </div>
                             </div>
+                            
+                            {/* Текст задачи */}
                             <div className="text-gray-300 font-mono text-sm mb-3 bg-black/30 p-3 rounded border border-white/5">{q.content}</div>
                             
+                            {/* Картинка к задаче (если есть) */}
+                            {q.imageUrl && (
+                                <div className="mb-3">
+                                    <img 
+                                        src={q.imageUrl} 
+                                        alt="Иллюстрация" 
+                                        className="max-h-48 rounded-lg border border-white/10 shadow-md object-contain bg-black/50" 
+                                    />
+                                </div>
+                            )}
+                            
+                            {/* Ссылка на видеоразбор */}
                             {q.videoUrl && (
                                 <div className="text-xs text-blue-400 flex items-center gap-2 bg-blue-900/10 w-max px-3 py-1.5 rounded border border-blue-500/20">
                                     <span>▶ Разбор:</span> <a href={q.videoUrl} target="_blank" rel="noreferrer" className="underline hover:text-blue-300">{q.videoUrl}</a>
@@ -221,20 +239,43 @@ export default function CourseManagerPage() {
                                   onChange={e => setNewQuestion({ ...newQuestion, answer: e.target.value, lessonId: lesson.id })}
                               />
                           </div>
+                          
                           <div className="flex flex-col md:flex-row gap-3">
                               <input 
                                   className="flex-grow bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
-                                  placeholder="Ссылка на видеоразбор (YouTube URL) — необязательно"
+                                  placeholder="Ссылка на видеоразбор (YouTube URL)"
                                   value={newQuestion.lessonId === lesson.id ? newQuestion.videoUrl : ''}
                                   onChange={e => setNewQuestion({ ...newQuestion, videoUrl: e.target.value, lessonId: lesson.id })}
                               />
-                              <button 
-                                  onClick={() => addQuestion(lesson.id)}
-                                  className="bg-white/10 text-white font-bold uppercase tracking-widest text-xs px-6 py-3 rounded hover:bg-yellow-400 hover:text-black transition whitespace-nowrap border border-white/20 hover:border-yellow-400"
-                              >
-                                  Сохранить
-                              </button>
+                              <input 
+                                  className="flex-grow bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm border-l-4 border-l-blue-500"
+                                  placeholder="Ссылка на картинку (URL)"
+                                  value={newQuestion.lessonId === lesson.id ? newQuestion.imageUrl : ''}
+                                  onChange={e => setNewQuestion({ ...newQuestion, imageUrl: e.target.value, lessonId: lesson.id })}
+                              />
                           </div>
+
+                          {/* Предпросмотр картинки при вставке ссылки */}
+                          {newQuestion.lessonId === lesson.id && newQuestion.imageUrl && (
+                              <div className="relative w-max mt-2">
+                                  <span className="text-xs text-black bg-yellow-400 px-2 py-0.5 rounded-t-lg absolute -top-5 left-0 font-bold font-mono">
+                                      Предпросмотр
+                                  </span>
+                                  <img 
+                                      src={newQuestion.imageUrl} 
+                                      alt="preview" 
+                                      className="max-h-40 rounded-b-lg rounded-tr-lg border-2 border-yellow-400/50 object-contain bg-black/80" 
+                                      onError={(e) => e.currentTarget.style.display = 'none'}
+                                  />
+                              </div>
+                          )}
+
+                          <button 
+                              onClick={() => addQuestion(lesson.id)}
+                              className="bg-white/10 text-white font-bold uppercase tracking-widest text-xs px-6 py-3 rounded hover:bg-yellow-400 hover:text-black transition whitespace-nowrap border border-white/20 hover:border-yellow-400 w-full md:w-max self-end mt-2"
+                          >
+                              Сохранить задачу
+                          </button>
                       </div>
                     </div>
                   </div>

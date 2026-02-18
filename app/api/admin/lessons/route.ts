@@ -6,13 +6,14 @@ export async function POST(request: Request) {
   if (!await checkAdminAuth()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const { title, videoUrl, taskId, pdfId } = await request.json();
+    const { title, videoUrl, imageUrl, taskId, pdfId } = await request.json();
     
     const lesson = await prisma.lesson.create({
       data: {
         title,
         videoUrl,
-        pdfId, // ID файла на Google Drive или ссылка
+        imageUrl,
+        pdfId,
         taskId: Number(taskId),
       },
     });
