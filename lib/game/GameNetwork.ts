@@ -1,49 +1,22 @@
 import * as Colyseus from "colyseus.js";
 
 class GameNetwork {
-  client: Colyseus.Client | null = null;
+  client: Colyseus.Client;
   room: Colyseus.Room | null = null;
+  
+  // URL игрового сервера
+  private readonly GAME_SERVER_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || "ws://localhost:2567";
 
   constructor() {
-    
-  }
-
-  // Метод для динамического получения/создания клиента
-  private getClient(): Colyseus.Client {
-    if (this.client) return this.client; // Если уже создан, возвращаем его
-
-    let endpoint;
-
-    // Проверяем URL только в момент реального коннекта (когда мы 100% в браузере)
-    if (!endpoint && typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      
-      // Если это локальная разработка (localhost или локальный IP)
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        endpoint = `ws://${hostname}:2567`;
-      } else {
-        // Универсальное подключение для physmathlab.ru и любого другого домена
-        // Автоматически подбирает wss:// для защищенного соединения
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        endpoint = `${protocol}://${hostname}:2567`;
-      }
-    } else if (!endpoint) {
-      // Резервный вариант, если вдруг вызывается вне браузера
-      endpoint = "ws://localhost:2567";
-    }
-
-    this.client = new Colyseus.Client(endpoint);
-    return this.client;
+    this.client = new Colyseus.Client(this.GAME_SERVER_URL);
   }
 
   async connect(token: string) {
     if (this.room) return this.room;
 
     try {
-      // Инициализируем клиента именно здесь
-      const client = this.getClient();
-      
-      this.room = await client.joinOrCreate("game", { token });
+      // Подключаемся к комнате "game", передавая токен авторизации
+      this.room = await this.client.joinOrCreate("game", { token });
       console.log("Joined room successfully!", this.room.sessionId);
       return this.room;
     } catch (e) {
@@ -59,6 +32,7 @@ class GameNetwork {
     }
   }
 
+  // Метод для отправки команд (удобная обертка)
   send(type: string, message?: any) {
     if (this.room) {
       this.room.send(type, message);
@@ -68,4 +42,5 @@ class GameNetwork {
   }
 }
 
+// Экспортируем единственный экземпляр (Singleton)
 export const gameNetwork = new GameNetwork();
