@@ -7,8 +7,17 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
     const targetPath = searchParams.get('path') || '';
 
-    const imagesDir = path.join(process.cwd(), 'public', 'images');
-    const baseDir = path.resolve(imagesDir, '..');
+    let baseDir = '';
+
+    if (fs.existsSync('/container')) {
+        baseDir = '/container';
+    } 
+    else if (process.env.LOCAL_IMAGES_PATH) {
+        baseDir = path.resolve(process.env.LOCAL_IMAGES_PATH, '..');
+    } 
+    else {
+        baseDir = path.join(process.cwd(), 'public');
+    }
 
     const cleanPath = targetPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     const normalizedPath = path.normalize(cleanPath).replace(/^(\.\.(\/|\\|$))+/, '');
@@ -18,7 +27,8 @@ export async function GET(req: NextRequest) {
     if (!fs.existsSync(fullPath)) {
         return NextResponse.json({ 
             error: `Папка не найдена`, 
-            debugPath: fullPath 
+            debugPath: fullPath,
+            usedBaseDir: baseDir
         }, { status: 404 });
     }
 
