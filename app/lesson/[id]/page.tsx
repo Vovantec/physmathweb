@@ -338,12 +338,12 @@ export default function LessonPage() {
                                     )}
 
                                     <span className="text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded inline-block mt-2">
-                                        {q.type === 'option' ? 'ВЫБОР ВАРИАНТА' : 'ВВОД ЗНАЧЕНИЯ'}
+                                        {q.type === 'option' ? 'Выберите правильный вариант ответа' : 'Введите правильный ответ'}
                                     </span>
                                 </div>
                             </p>
                             <span className="text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded inline-block mt-2">
-                                {q.type === 'option' ? 'ВЫБОР ВАРИАНТА' : 'ВВОД ЗНАЧЕНИЯ'}
+                                {q.type === 'option' ? 'Выберите правильный вариант ответа' : 'Введите правильный ответ'}
                             </span>
                         </div>
 

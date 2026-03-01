@@ -40,3 +40,8 @@ next-env.d.ts
 /app/generated/prisma
 
 /public/images
+
+# Prisma / SQLite
+*.db
+*.db-journal
+/prisma/dev.db
