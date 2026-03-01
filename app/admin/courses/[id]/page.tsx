@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import FileManagerModal from '@/app/components/admin/FileManagerModal';
 
 export default function CourseManagerPage() {
   const { id } = useParams();
@@ -14,6 +15,28 @@ export default function CourseManagerPage() {
   
   // Форма добавления задачи в ДЗ (с картинками и видео)
   const [newQuestion, setNewQuestion] = useState({ type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: 0 });
+
+  // Состояния для файлового менеджера
+  const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
+  const [currentFileField, setCurrentFileField] = useState<'videoUrl' | 'imageUrl' | null>(null);
+
+  // Обработчик открытия менеджера
+  const handleOpenManager = (field: 'videoUrl' | 'imageUrl', lessonId: number) => {
+    setNewQuestion(prev => prev.lessonId === lessonId 
+        ? { ...prev } 
+        : { type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId }
+    );
+    setCurrentFileField(field);
+    setIsFileManagerOpen(true);
+  };
+
+  // Обработчик выбора файла
+  const handleSelectFile = (path: string) => {
+    if (currentFileField) {
+      setNewQuestion(prev => ({ ...prev, [currentFileField]: path }));
+    }
+    setIsFileManagerOpen(false);
+  };
 
   const fetchCourseData = async () => {
     // Берем данные из защищенного админского API, чтобы видеть ДЗ
@@ -252,18 +275,41 @@ export default function CourseManagerPage() {
                           </div>
                           
                           <div className="flex flex-col md:flex-row gap-3">
-                              <input 
-                                  className="flex-grow bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
-                                  placeholder="Ссылка на видеоразбор (YouTube URL)"
-                                  value={newQuestion.lessonId === lesson.id ? newQuestion.videoUrl : ''}
-                                  onChange={e => setNewQuestion({ ...newQuestion, videoUrl: e.target.value, lessonId: lesson.id })}
-                              />
-                              <input 
-                                  className="flex-grow bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm border-l-4 border-l-blue-500"
-                                  placeholder="Ссылка на картинку (URL)"
-                                  value={newQuestion.lessonId === lesson.id ? newQuestion.imageUrl : ''}
-                                  onChange={e => setNewQuestion({ ...newQuestion, imageUrl: e.target.value, lessonId: lesson.id })}
-                              />
+                            {/* Ссылка на видеоразбор с кнопкой выбора */}
+                            <div className="flex flex-grow gap-2">
+                                <input 
+                                    className="w-full bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
+                                    placeholder="Ссылка на видео (URL или сервер)"
+                                    value={newQuestion.lessonId === lesson.id ? newQuestion.videoUrl : ''}
+                                    onChange={e => setNewQuestion({ ...newQuestion, videoUrl: e.target.value, lessonId: lesson.id })}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => handleOpenManager('videoUrl', lesson.id)}
+                                    className="bg-white/10 px-4 py-3 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition"
+                                    title="Выбрать на сервере"
+                                >
+                                    📁
+                                </button>
+                            </div>
+
+                            {/* Ссылка на картинку с кнопкой выбора */}
+                            <div className="flex flex-grow gap-2">
+                                <input 
+                                    className="w-full bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm border-l-4 border-l-blue-500"
+                                    placeholder="Ссылка на картинку (URL или сервер)"
+                                    value={newQuestion.lessonId === lesson.id ? newQuestion.imageUrl : ''}
+                                    onChange={e => setNewQuestion({ ...newQuestion, imageUrl: e.target.value, lessonId: lesson.id })}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => handleOpenManager('imageUrl', lesson.id)}
+                                    className="bg-white/10 px-4 py-3 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition"
+                                    title="Выбрать на сервере"
+                                >
+                                    📁
+                                </button>
+                            </div>
                           </div>
 
                           {/* Предпросмотр картинки при вставке ссылки */}
@@ -322,6 +368,15 @@ export default function CourseManagerPage() {
           ))}
         </div>
       </div>
+
+      {/* Модальное окно файлового менеджера */}
+      <FileManagerModal 
+        isOpen={isFileManagerOpen}
+        onClose={() => setIsFileManagerOpen(false)}
+        onSelect={handleSelectFile}
+        baseFolder="courses"
+      />
+
     </div>
   );
 }
