@@ -89,6 +89,7 @@ export default function StudentProfilePage() {
           </div>
         </div>
       </div>
+      
 
       <div className="flex items-center gap-4 mb-6 mt-12">
         <h2 className="text-2xl font-bold uppercase tracking-widest">История домашних заданий</h2>
