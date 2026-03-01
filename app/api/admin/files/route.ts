@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
     }));
 
     files.sort((a, b) => {
-      if (a.isDirectory() === b.isDirectory()) return a.name.localeCompare(b.name);
-      return a.isDirectory() ? -1 : 1;
+      if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
+      return a.isDirectory ? -1 : 1;
     });
 
     return NextResponse.json({ files, currentPath: normalizedPath, debugPath: fullPath });
