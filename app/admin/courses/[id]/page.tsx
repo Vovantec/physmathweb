@@ -18,22 +18,27 @@ export default function CourseManagerPage() {
 
   // Состояния для файлового менеджера
   const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
-  const [currentFileField, setCurrentFileField] = useState<'videoUrl' | 'imageUrl' | null>(null);
+  const [currentFileTarget, setCurrentFileTarget] = useState<'questionVideo' | 'questionImage' | 'lessonVideo' | null>(null);
 
   // Обработчик открытия менеджера
-  const handleOpenManager = (field: 'videoUrl' | 'imageUrl', lessonId: number) => {
-    setNewQuestion(prev => prev.lessonId === lessonId 
-        ? { ...prev } 
-        : { type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId }
-    );
-    setCurrentFileField(field);
+  const handleOpenManager = (target: 'questionVideo' | 'questionImage' | 'lessonVideo', id: number) => {
+    if (target === 'lessonVideo') {
+      setNewLesson(prev => prev.taskId === id ? { ...prev } : { title: '', videoUrl: '', taskId: id });
+    } else {
+      setNewQuestion(prev => prev.lessonId === id ? { ...prev } : { type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: id });
+    }
+    setCurrentFileTarget(target);
     setIsFileManagerOpen(true);
   };
 
   // Обработчик выбора файла
   const handleSelectFile = (path: string) => {
-    if (currentFileField) {
-      setNewQuestion(prev => ({ ...prev, [currentFileField]: path }));
+    if (currentFileTarget === 'lessonVideo') {
+      setNewLesson(prev => ({ ...prev, videoUrl: path }));
+    } else if (currentFileTarget === 'questionVideo') {
+      setNewQuestion(prev => ({ ...prev, videoUrl: path }));
+    } else if (currentFileTarget === 'questionImage') {
+      setNewQuestion(prev => ({ ...prev, imageUrl: path }));
     }
     setIsFileManagerOpen(false);
   };
@@ -285,7 +290,7 @@ export default function CourseManagerPage() {
                                 />
                                 <button 
                                     type="button"
-                                    onClick={() => handleOpenManager('videoUrl', lesson.id)}
+                                    onClick={() => handleOpenManager('questionVideo', lesson.id)}
                                     className="bg-white/10 px-4 py-3 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition"
                                     title="Выбрать на сервере"
                                 >
@@ -303,7 +308,7 @@ export default function CourseManagerPage() {
                                 />
                                 <button 
                                     type="button"
-                                    onClick={() => handleOpenManager('imageUrl', lesson.id)}
+                                    onClick={() => handleOpenManager('questionImage', lesson.id)}
                                     className="bg-white/10 px-4 py-3 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition"
                                     title="Выбрать на сервере"
                                 >
@@ -349,12 +354,22 @@ export default function CourseManagerPage() {
                     value={newLesson.taskId === task.id ? newLesson.title : ''}
                     onChange={e => setNewLesson({ ...newLesson, title: e.target.value, taskId: task.id })}
                   />
-                  <input 
-                    className="flex-grow bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
-                    placeholder="Ссылка на лекцию (YouTube URL)"
-                    value={newLesson.taskId === task.id ? newLesson.videoUrl : ''}
-                    onChange={e => setNewLesson({ ...newLesson, videoUrl: e.target.value, taskId: task.id })}
-                  />
+                  <div className="flex flex-grow gap-2">
+                    <input 
+                      className="w-full bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
+                      placeholder="Ссылка на лекцию (URL или сервер)"
+                      value={newLesson.taskId === task.id ? newLesson.videoUrl : ''}
+                      onChange={e => setNewLesson({ ...newLesson, videoUrl: e.target.value, taskId: task.id })}
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => handleOpenManager('lessonVideo', task.id)}
+                      className="bg-white/10 px-4 py-3 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition"
+                      title="Выбрать на сервере"
+                    >
+                      📁
+                    </button>
+                  </div>
                   <button 
                     onClick={() => addLesson(task.id)}
                     className="bg-white text-black font-extrabold uppercase tracking-widest text-xs px-8 py-3 rounded hover:bg-yellow-400 transition transform active:scale-95 whitespace-nowrap"
