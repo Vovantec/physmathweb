@@ -284,7 +284,7 @@ export default function CourseManagerPage() {
                             <div className="flex flex-grow gap-2">
                                 <input 
                                     className="w-full bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
-                                    placeholder="Ссылка на видео (URL или сервер)"
+                                    placeholder="Ссылка на видео-разбор (после решения)"
                                     value={newQuestion.lessonId === lesson.id ? newQuestion.videoUrl : ''}
                                     onChange={e => setNewQuestion({ ...newQuestion, videoUrl: e.target.value, lessonId: lesson.id })}
                                 />
@@ -302,7 +302,7 @@ export default function CourseManagerPage() {
                             <div className="flex flex-grow gap-2">
                                 <input 
                                     className="w-full bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm border-l-4 border-l-blue-500"
-                                    placeholder="Ссылка на картинку (URL или сервер)"
+                                    placeholder="Ссылка на картинку (во время решения задания)"
                                     value={newQuestion.lessonId === lesson.id ? newQuestion.imageUrl : ''}
                                     onChange={e => setNewQuestion({ ...newQuestion, imageUrl: e.target.value, lessonId: lesson.id })}
                                 />
