@@ -300,7 +300,8 @@ export default function LessonPage() {
               </div>
               
               <div className="flex gap-2">
-                  {lesson.attempts.map((att, idx) => (
+                  {/* Добавлен знак вопроса после attempts */}
+                  {lesson.attempts?.map((att, idx) => (
                       <div key={idx} className={`px-3 py-1 rounded border text-xs font-bold ${att.percent === 100 ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-red-500/20 border-red-500 text-red-400'}`}>
                           #{idx + 1}: {att.percent}%
                       </div>
