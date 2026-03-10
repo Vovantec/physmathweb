@@ -21,20 +21,29 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    // Добавили imageUrl в деструктуризацию
     const { title, content, tags, authorId, imageUrl } = await req.json();
 
     if (!title || !content) {
       return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
     }
 
+    // Безопасно парсим ID (если его нет в БД или в кэше пусто, будет null)
+    let parsedAuthorId = null;
+    if (authorId && authorId !== "null" && authorId !== "undefined") {
+      try {
+        parsedAuthorId = BigInt(authorId);
+      } catch (e) {
+        console.error("Invalid authorId format:", authorId);
+      }
+    }
+
     const newPost = await prisma.newsPost.create({
       data: {
         title,
         content,
-        imageUrl, // Сохраняем ссылку на картинку
+        imageUrl: imageUrl || null,
         tags: tags || "[]",
-        authorId: authorId ? BigInt(authorId) : null,
+        authorId: parsedAuthorId,
       },
     });
 
@@ -42,9 +51,10 @@ export async function POST(req: Request) {
       ...newPost,
       authorId: newPost.authorId?.toString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("News creation error:", error);
-    return NextResponse.json({ error: "Failed to create news" }, { status: 500 });
+    // Теперь мы возвращаем details с текстом реальной ошибки из БД!
+    return NextResponse.json({ error: "Failed to create news", details: error.message }, { status: 500 });
   }
 }
 
