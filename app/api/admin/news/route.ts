@@ -27,11 +27,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
     }
 
-    // Безопасно парсим ID (если его нет в БД или в кэше пусто, будет null)
     let parsedAuthorId = null;
+    
+    // Проверяем и парсим ID автора
     if (authorId && authorId !== "null" && authorId !== "undefined") {
       try {
-        parsedAuthorId = BigInt(authorId);
+        const tempId = BigInt(authorId);
+        
+        // ЗАЩИТА ОТ ОШИБКИ FOREIGN KEY: 
+        // Проверяем, существует ли реально такой пользователь в БД
+        const userExists = await prisma.user.findUnique({
+          where: { telegramId: tempId }
+        });
+
+        if (userExists) {
+          parsedAuthorId = tempId; // Всё ок, пользователь есть
+        } else {
+          console.warn(`User with ID ${tempId} not found in DB. Setting authorId to null.`);
+          // Оставляем parsedAuthorId = null
+        }
       } catch (e) {
         console.error("Invalid authorId format:", authorId);
       }
@@ -43,7 +57,7 @@ export async function POST(req: Request) {
         content,
         imageUrl: imageUrl || null,
         tags: tags || "[]",
-        authorId: parsedAuthorId,
+        authorId: parsedAuthorId, // Теперь здесь либо 100% существующий ID, либо null
       },
     });
 
@@ -53,7 +67,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error("News creation error:", error);
-    // Теперь мы возвращаем details с текстом реальной ошибки из БД!
     return NextResponse.json({ error: "Failed to create news", details: error.message }, { status: 500 });
   }
 }
