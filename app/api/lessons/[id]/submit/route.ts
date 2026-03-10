@@ -10,36 +10,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await request.json();
     const { userId, answers } = body;
 
-    console.log(`--- ЗАПРОС ОТПРАВКИ РЕШЕНИЯ ---`);
-    console.log(`Lesson ID: ${id}`);
-    console.log(`User ID (из браузера): ${userId}`);
-
     if (!userId) return NextResponse.json({ error: 'Вы не авторизованы' }, { status: 401 });
 
     const lessonIdInt = parseInt(id);
-    const internalUserId = parseInt(userId); // Это ID строки в таблице User (например, 1)
+    
+    let tgIdBigInt: bigint;
+    try {
+        tgIdBigInt = BigInt(userId);
+    } catch (e) {
+        return NextResponse.json({ error: 'Неверный формат ID пользователя' }, { status: 400 });
+    }
 
-    // 1. Ищем пользователя по ВНУТРЕННЕМУ ID (id), а не по telegramId
     const user = await prisma.user.findUnique({
-        where: { id: internalUserId }
+        where: { telegramId: tgIdBigInt }
     });
 
     if (!user) {
-        console.error(`❌ Пользователь с internalId=${internalUserId} не найден.`);
         return NextResponse.json({ error: 'Пользователь не найден. Попробуйте перезайти.' }, { status: 404 });
     }
-    
-    // Получаем настоящий Telegram ID из найденного пользователя
-    const tgIdBigInt = user.telegramId;
-    console.log(`✅ Пользователь найден. Его Telegram ID: ${tgIdBigInt}`);
 
-    // 2. Ищем урок и загружаем попытки для ЭТОГО Telegram ID
     const lesson = await prisma.lesson.findUnique({
         where: { id: lessonIdInt },
         include: { 
             questions: true,
             attempts: { 
-                where: { userId: tgIdBigInt } // Тут используем BigInt
+                where: { userId: tgIdBigInt }
             } 
         }
     });
@@ -48,12 +43,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Урок не найден' }, { status: 404 });
     }
 
-    // 3. Проверяем лимит попыток
+    // Проверяем лимит попыток
     if (lesson.attempts.length >= 2) {
         return NextResponse.json({ error: 'Попытки исчерпаны' }, { status: 403 });
     }
 
-    // 4. Проверяем ответы
+    // Проверяем ответы
     let correctCount = 0;
     const totalCount = lesson.questions.length;
 
@@ -65,7 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const percent = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
 
-    // 5. Начисление баллов
+    // Начисление баллов
     const isFirstAttempt = lesson.attempts.length === 0;
     const previousMax = lesson.attempts.length > 0 
         ? Math.max(...lesson.attempts.map(a => a.correct)) 
@@ -84,8 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         bonusGained = true;
     }
 
-    // 6. Сохраняем результат
-    // Используем tgIdBigInt для связи с таблицей HomeworkAttempt (так как там foreign key на telegramId)
+    // Сохраняем результат
     await prisma.$transaction([
         prisma.homeworkAttempt.create({
             data: {
@@ -98,7 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             }
         }),
         prisma.user.update({
-            where: { telegramId: tgIdBigInt }, // Обновляем баллы по Telegram ID
+            where: { telegramId: tgIdBigInt },
             data: {
                 points: { increment: pointsGained }
             }

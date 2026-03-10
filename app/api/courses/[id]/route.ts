@@ -10,15 +10,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   let targetTgId: bigint | undefined;
 
-  if (userIdStr) {
-    const internalId = parseInt(userIdStr);
-    if (!isNaN(internalId)) {
-        const user = await prisma.user.findUnique({
-            where: { id: internalId }
-        });
-        if (user) {
-            targetTgId = user.telegramId;
-        }
+  if (userIdStr && userIdStr !== 'null' && userIdStr !== 'undefined') {
+    try {
+        targetTgId = BigInt(userIdStr);
+    } catch (e) {
+        console.error("Неверный формат userId:", userIdStr);
     }
   }
 
