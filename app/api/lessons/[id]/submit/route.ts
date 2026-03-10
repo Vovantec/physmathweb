@@ -89,11 +89,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await prisma.$transaction([
         prisma.homeworkAttempt.create({
             data: {
-                userId: tgIdBigInt, 
+                userId: tgIdBigInt,
                 lessonId: lessonIdInt,
                 correct: correctCount,
                 total: totalCount,
-                percent: percent
+                percent: percent,
+                answers: JSON.stringify(answers),
             }
         }),
         prisma.user.update({

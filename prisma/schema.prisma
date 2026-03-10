@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -64,6 +64,7 @@ model HomeworkAttempt {
   correct   Int
   total     Int
   percent   Int
+  answers   String?
   createdAt DateTime @default(now())
   
   user      User     @relation(fields: [userId], references: [telegramId])

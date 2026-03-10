@@ -16,6 +16,7 @@ interface Attempt {
   percent: number;
   correct: number;
   total: number;
+  answers?: string;
   pointsGained?: number;
   bonusGained?: boolean;
   createdAt: string;
@@ -39,6 +40,7 @@ export default function LessonPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [user, setUser] = useState<{id: string} | null>(null);
+  const [solvedIds, setSolvedIds] = useState<number[]>([]);
   
   // Состояние для вкладок видеоразборов
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
@@ -57,7 +59,19 @@ export default function LessonPage() {
                 const bestAttempt = data.attempts.reduce((prev: Attempt, current: Attempt) => 
                     (prev.percent > current.percent) ? prev : current
                 );
-                
+
+                if (bestAttempt.answers) {
+                    const pastAnswers = JSON.parse(bestAttempt.answers);
+                    const correctIds = data.questions
+                        .filter((q: any) => {
+                            const userAns = (pastAnswers[q.id] || "").toString().trim().toLowerCase();
+                            const correctAns = q.answer.trim().toLowerCase();
+                            return userAns === correctAns;
+                        })
+                        .map((q: any) => q.id);
+                    setSolvedIds(correctIds);
+                }
+
                 const isPerfect = bestAttempt.percent === 100;
                 const isExhausted = data.attempts.length >= 2;
 
@@ -72,10 +86,8 @@ export default function LessonPage() {
                     });
                 }
             }
-            
             setLoading(false);
-        })
-        .catch(() => setLoading(false));
+        });
     }
   }, [id]);
 
