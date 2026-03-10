@@ -98,6 +98,12 @@ export default function Home() {
       </div>
         
         <div className="flex gap-6 items-center mt-6 md:mt-0">
+            <Link 
+              href="/news" 
+              className="block w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+            >
+              Новости
+            </Link>
             {/* Показываем кнопку админки только если user.isAdmin === true */}
             {user?.isAdmin && (
                 <Link 

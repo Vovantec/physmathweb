@@ -22,6 +22,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span>📊</span> Сводка
           </Link>
           <Link 
+            href="/admin/news" 
+            className="px-5 py-4 rounded-lg bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 transition font-mono text-sm flex items-center gap-3"
+          >
+            📢 Новости (Админ)
+          </Link>
+          <Link 
             href="/admin/courses" 
             className="px-5 py-4 rounded-lg bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 transition font-mono text-sm flex items-center gap-3"
           >
