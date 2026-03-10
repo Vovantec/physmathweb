@@ -6,29 +6,48 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const { userId } = await req.json();
     const postId = parseInt(params.id);
 
-    // Проверяем, стоит ли уже лайк от этого пользователя
+    if (!userId) {
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    }
+
+    const userBigInt = BigInt(userId);
+
+    // 1. ЗАЩИТА: Проверяем, существует ли пользователь в БД на самом деле
+    const userExists = await prisma.user.findUnique({
+      where: { telegramId: userBigInt }
+    });
+
+    if (!userExists) {
+      return NextResponse.json({ 
+        error: "Пользователь не найден в базе данных.", 
+        details: "Пожалуйста, нажмите 'Выйти' и авторизуйтесь заново через Telegram." 
+      }, { status: 403 });
+    }
+
+    // 2. Проверяем, стоит ли уже лайк
     const existingLike = await prisma.like.findUnique({
       where: {
         postId_userId: {
           postId: postId,
-          userId: BigInt(userId)
+          userId: userBigInt
         }
       }
     });
 
     if (existingLike) {
-      // Если лайк есть — убираем
+      // Убираем лайк
       await prisma.like.delete({ where: { id: existingLike.id } });
       return NextResponse.json({ liked: false });
     } else {
-      // Если нет — ставим
+      // Ставим лайк
       await prisma.like.create({
-        data: { postId, userId: BigInt(userId) }
+        data: { postId, userId: userBigInt }
       });
       return NextResponse.json({ liked: true });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Like error:", error);
-    return NextResponse.json({ error: "Failed to process like" }, { status: 500 });
+    // Возвращаем детальную ошибку
+    return NextResponse.json({ error: "Failed to process like", details: error.message }, { status: 500 });
   }
 }
