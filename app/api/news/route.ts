@@ -7,15 +7,20 @@ export async function GET(req: Request) {
     const tag = searchParams.get("tag");
 
     const news = await prisma.newsPost.findMany({
-      where: tag ? {
-        tags: {
-          contains: tag // Простой поиск по строке тегов
-        }
-      } : undefined,
+      where: tag ? { tags: { contains: tag } } : undefined,
       orderBy: { createdAt: "desc" },
       include: {
         author: {
           select: { firstName: true, username: true, photoUrl: true }
+        },
+        likes: {
+          select: { userId: true }
+        },
+        comments: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            author: { select: { firstName: true, photoUrl: true } }
+          }
         },
         _count: {
           select: { comments: true, likes: true }
@@ -23,10 +28,15 @@ export async function GET(req: Request) {
       }
     });
 
-    // Из-за BigInt преобразуем результат перед отправкой
+    // Сериализация BigInt в String
     const serializedNews = news.map(post => ({
       ...post,
       authorId: post.authorId?.toString(),
+      likes: post.likes.map(l => ({ userId: l.userId.toString() })),
+      comments: post.comments.map(c => ({
+        ...c,
+        authorId: c.authorId.toString()
+      }))
     }));
 
     return NextResponse.json(serializedNews);

@@ -1,30 +1,75 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-// Если у вас есть функция проверки на админа (например, checkAdmin), импортируйте её здесь.
 
+// GET: Получение списка всех новостей для админки
+export async function GET() {
+  try {
+    const news = await prisma.newsPost.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Преобразуем BigInt в строки, чтобы JSON.stringify не выдавал ошибку
+    const serializedNews = news.map(post => ({
+      ...post,
+      authorId: post.authorId?.toString(),
+    }));
+
+    return NextResponse.json(serializedNews);
+  } catch (error) {
+    console.error("Admin news fetch error:", error);
+    return NextResponse.json({ error: "Failed to fetch news" }, { status: 500 });
+  }
+}
+
+// POST: Создание новой новости
 export async function POST(req: Request) {
   try {
-    // В идеале здесь должна быть проверка авторизации администратора
-    
-    const body = await req.json();
-    const { title, content, tags } = body;
+    const { title, content, tags, authorId } = await req.json();
 
-    // tags приходят как массив строк (например: ["физика", "анонс"])
-    // В базе мы храним их как JSON-строку
-    const tagsString = JSON.stringify(tags || []);
+    if (!title || !content) {
+      return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
+    }
 
     const newPost = await prisma.newsPost.create({
       data: {
         title,
         content,
-        tags: tagsString,
-        // authorId: Вставьте сюда BigInt ID админа, если нужно отслеживать авторство
+        tags: tags || "[]",
+        // Если автор передан, сохраняем его как BigInt (ID из Telegram)
+        authorId: authorId ? BigInt(authorId) : null,
       },
     });
 
-    return NextResponse.json({ success: true, post: newPost });
+    // Возвращаем созданный пост, предварительно сериализовав BigInt
+    return NextResponse.json({
+      ...newPost,
+      authorId: newPost.authorId?.toString(),
+    });
   } catch (error) {
-    console.error("Error creating news post:", error);
-    return NextResponse.json({ error: "Ошибка при создании новости" }, { status: 500 });
+    console.error("News creation error:", error);
+    return NextResponse.json({ error: "Failed to create news" }, { status: 500 });
+  }
+}
+
+// DELETE: Удаление новости по ID
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "News ID is required" }, { status: 400 });
+    }
+
+    await prisma.newsPost.delete({
+      where: {
+        id: parseInt(id),
+      },
+    });
+
+    return NextResponse.json({ success: true, message: "News deleted successfully" });
+  } catch (error) {
+    console.error("News deletion error:", error);
+    return NextResponse.json({ error: "Failed to delete news" }, { status: 500 });
   }
 }

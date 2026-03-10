@@ -1,42 +1,74 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import BotLogin from "../components/BotLogin";
+
+interface UserData {
+  id: string;
+  name?: string;
+  photo?: string;
+  isAdmin?: boolean;
+}
 
 export default function NewsPage() {
   const [news, setNews] = useState<any[]>([]);
-  const [user, setUser] = useState<any>(null); // Состояние для хранения текущего пользователя
+  const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<Record<number, boolean>>({});
+  const [commentTexts, setCommentTexts] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    // Параллельно загружаем новости и сессию пользователя
-    Promise.all([
-      fetch("/api/news").then(res => res.json()),
-      fetch("/api/auth/session").then(res => res.ok ? res.json() : null)
-    ])
-    .then(([newsData, sessionData]) => {
-      setNews(newsData);
-      
-      // Если сессия есть и пользователь авторизован, сохраняем его
-      if (sessionData && sessionData.user) {
-        setUser(sessionData.user);
-      }
-      
-      setLoading(false);
-    })
-    .catch(err => {
-      console.error("Ошибка загрузки:", err);
-      setLoading(false);
-    });
+    // Подтягиваем авторизацию из localStorage, как на главной странице
+    const storedId = localStorage.getItem('user_id');
+    if (storedId) {
+      setUser({
+        id: storedId,
+        name: localStorage.getItem('user_name') || undefined,
+        photo: localStorage.getItem('user_photo') || undefined,
+        isAdmin: localStorage.getItem('user_is_admin') === 'true'
+      });
+    }
+
+    fetchNews();
   }, []);
 
+  const fetchNews = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/news");
+      if (res.ok) {
+        const data = await res.json();
+        setNews(data);
+      }
+    } catch (err) {
+      console.error("Ошибка загрузки:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAuth = (userData: any) => {
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('user_id', userData.id);
+    if (userData.name) localStorage.setItem('user_name', userData.name);
+    if (userData.photo) localStorage.setItem('user_photo', userData.photo);
+    localStorage.setItem('user_is_admin', userData.isAdmin ? 'true' : 'false');
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    setUser(null);
+  };
+
   const handleLike = async (postId: number) => {
-    // Если ученик не авторизован (не вошел через Telegram)
-    if (!user || !user.id) {
-      alert("Пожалуйста, авторизуйтесь на главной странице, чтобы ставить лайки!");
+    if (!user) {
+      alert("Авторизуйтесь, чтобы ставить лайки!");
       return;
     }
 
-    // Отправляем реальный ID пользователя (telegramId)
     const res = await fetch(`/api/news/${postId}/like`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,112 +76,258 @@ export default function NewsPage() {
     });
     
     if (res.ok) {
-      const data = await res.json(); 
+      const data = await res.json();
       setNews(news.map(p => {
         if (p.id === postId) {
+          // Обновляем массив лайков, чтобы UI сразу отреагировал
+          const updatedLikes = data.liked 
+            ? [...p.likes, { userId: user.id }] 
+            : p.likes.filter((l: any) => l.userId !== user.id);
+            
           return { 
              ...p, 
-             _count: { 
-               ...p._count, 
-               likes: data.liked ? p._count.likes + 1 : p._count.likes - 1 
-             }
+             likes: updatedLikes,
+             _count: { ...p._count, likes: data.liked ? p._count.likes + 1 : p._count.likes - 1 }
           };
         }
         return p;
       }));
-    } else {
-      alert("Произошла ошибка при постановке лайка");
     }
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="p-8 text-center text-xl text-gray-600">Загрузка новостей...</div>
-    </div>
-  );
+  const submitComment = async (postId: number) => {
+    if (!user) return alert("Авторизуйтесь, чтобы писать комментарии!");
+    const text = commentTexts[postId]?.trim();
+    if (!text) return;
+
+    const res = await fetch(`/api/news/${postId}/comment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, content: text })
+    });
+
+    if (res.ok) {
+      const newComment = await res.json();
+      setNews(news.map(p => {
+        if (p.id === postId) {
+          return {
+            ...p,
+            comments: [...p.comments, newComment],
+            _count: { ...p._count, comments: p._count.comments + 1 }
+          };
+        }
+        return p;
+      }));
+      setCommentTexts({ ...commentTexts, [postId]: "" }); // Очищаем поле ввода
+    }
+  };
+
+  const toggleComments = (postId: number) => {
+    setExpandedComments(prev => ({ ...prev, [postId]: !prev[postId] }));
+  };
+
+  // Собираем все уникальные теги из загруженных новостей
+  const allTags = useMemo(() => {
+    const tagsSet = new Set<string>();
+    news.forEach(post => {
+      try {
+        const tags = JSON.parse(post.tags || "[]");
+        tags.forEach((t: string) => tagsSet.add(t));
+      } catch (e) {}
+    });
+    return Array.from(tagsSet);
+  }, [news]);
+
+  // Фильтруем новости по выбранному тегу
+  const filteredNews = selectedTag 
+    ? news.filter(post => {
+        try {
+          return JSON.parse(post.tags || "[]").includes(selectedTag);
+        } catch(e) { return false; }
+      })
+    : news;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      
-      {/* КРАСИВАЯ ШАПКА ДЛЯ УЧЕНИКА */}
-      <header className="bg-white shadow-sm mb-8">
-        <div className="max-w-4xl mx-auto p-4 flex justify-between items-center">
-          <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2">
-            <span>←</span> На главную
-          </Link>
+    <div className="min-h-screen bg-[#121212] text-white">
+      {/* ШАПКА КАК НА ГЛАВНОЙ */}
+      <header className="w-full bg-[#1a1a1a] shadow-lg shadow-black/50 border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-4xl mx-auto p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">⚛️</span>
+            <h1 className="flex flex-col tracking-tighter uppercase font-sans">
+              <span className="text-[10px] text-yellow-400 font-bold tracking-[0.3em] mb-0.5 ml-1">by Шевелев</span>
+              <span className="text-2xl font-extrabold text-white leading-none">
+                ФИЗ<span className="text-gray-500">МАТ</span>
+              </span>
+            </h1>
+          </div>
+          
           <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold text-gray-800 hidden md:block">PhysMath Платформа</h2>
+            <Link href="/courses" className="text-gray-400 hover:text-white transition font-bold uppercase text-sm px-4 py-2">
+              Курсы
+            </Link>
             
-            {/* Показываем аватарку или имя пользователя, если он авторизован */}
             {user ? (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                {user.photoUrl && <img src={user.photoUrl} alt="avatar" className="w-8 h-8 rounded-full" />}
-                <span>{user.firstName}</span>
+              <div className="flex items-center gap-3 bg-black/40 border border-white/10 px-4 py-1.5 rounded-full">
+                {user.photo && <img src={user.photo} alt="ava" className="w-7 h-7 rounded-full" />}
+                <span className="text-sm font-bold">{user.name}</span>
+                <button onClick={handleLogout} className="text-xs text-red-400 hover:text-red-300 ml-2 font-bold uppercase">
+                  Выйти
+                </button>
               </div>
             ) : (
-              <span className="text-sm text-red-500 font-medium">Не авторизован</span>
+              <div className="h-[40px] transform scale-90 origin-right">
+                <BotLogin onAuth={handleAuth} />
+              </div>
             )}
           </div>
         </div>
       </header>
 
-      {/* ОСНОВНОЙ КОНТЕНТ НОВОСТЕЙ */}
-      <div className="max-w-4xl mx-auto p-4 md:p-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Новости и Анонсы</h1>
+      {/* ОСНОВНОЙ КОНТЕНТ */}
+      <div className="max-w-4xl mx-auto p-4 md:p-8 pt-8">
+        <div className="flex justify-between items-end mb-8 border-b border-white/10 pb-4">
+          <h1 className="text-4xl font-extrabold uppercase tracking-tight">Лента <span className="text-yellow-400">Новостей</span></h1>
         </div>
         
-        <div className="space-y-6">
-          {news.map((post) => {
-            const tags = JSON.parse(post.tags || "[]");
-            
-            return (
-              <div key={post.id} className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-                <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-2xl font-semibold text-gray-900">{post.title}</h2>
-                  <span className="text-sm text-gray-400">
-                    {new Date(post.createdAt).toLocaleDateString("ru-RU")}
-                  </span>
-                </div>
-                
-                <div className="flex gap-2 mb-4">
-                  {tags.map((tag: string) => (
-                    <span key={tag} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full cursor-pointer hover:bg-blue-200">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+        {/* ПАНЕЛЬ ТЕГОВ */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-8">
+            <button 
+              onClick={() => setSelectedTag(null)}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${!selectedTag ? 'bg-white text-black' : 'bg-[#1a1a1a] text-gray-400 hover:bg-white/10'}`}
+            >
+              Все
+            </button>
+            {allTags.map(tag => (
+              <button 
+                key={tag}
+                onClick={() => setSelectedTag(tag)}
+                className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${selectedTag === tag ? 'bg-yellow-400 text-black' : 'bg-[#1a1a1a] text-gray-400 hover:bg-white/10'}`}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
 
-                <div className="prose max-w-none text-gray-700 mb-6 whitespace-pre-wrap">
-                  {post.content}
-                </div>
+        {/* СПИСОК НОВОСТЕЙ */}
+        {loading ? (
+          <div className="text-center py-20 text-gray-400 animate-pulse">Загрузка новостей...</div>
+        ) : filteredNews.length === 0 ? (
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-10 text-center text-gray-400 font-mono">
+            Новостей пока нет.
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {filteredNews.map((post) => {
+              const tags = JSON.parse(post.tags || "[]");
+              const isLikedByMe = user && post.likes.some((l: any) => l.userId === user.id);
+              const showComments = expandedComments[post.id];
+              
+              return (
+                <article key={post.id} className="bg-[#1a1a1a] rounded-2xl border border-white/10 overflow-hidden shadow-2xl transition-all hover:border-white/20">
+                  <div className="p-6 md:p-8">
+                    <div className="flex justify-between items-start gap-4 mb-4">
+                      <h2 className="text-2xl font-bold text-white leading-tight">{post.title}</h2>
+                      <span className="text-xs font-mono text-gray-500 whitespace-nowrap bg-black/50 px-3 py-1 rounded-full border border-white/5">
+                        {new Date(post.createdAt).toLocaleDateString("ru-RU", { day: 'numeric', month: 'long' })}
+                      </span>
+                    </div>
+                    
+                    {tags.length > 0 && (
+                      <div className="flex gap-2 mb-6">
+                        {tags.map((tag: string) => (
+                          <span key={tag} className="px-2 py-0.5 bg-white/5 text-yellow-400 text-xs rounded border border-yellow-400/20 uppercase font-bold tracking-widest">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                <div className="flex items-center gap-6 border-t pt-4 text-gray-500">
-                  <button 
-                    onClick={() => handleLike(post.id)} 
-                    className="flex items-center gap-2 hover:text-red-500 transition"
-                  >
-                    {/* Визуальная реакция: если пользователь авторизован, даем возможность лайкать */}
-                    <span className={user ? "opacity-100" : "opacity-50 grayscale"}>❤️</span> 
-                    {post._count.likes}
-                  </button>
-                  <button className="flex items-center gap-2 hover:text-blue-500 transition">
-                    <span>💬</span> {post._count.comments} Комментариев
-                  </button>
-                  <span className="ml-auto text-sm text-gray-400">
-                    Автор: {post.author?.firstName || "Администрация"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-          
-          {news.length === 0 && (
-            <div className="bg-white rounded-xl shadow-md p-8 text-center text-gray-500">
-              Новостей пока нет.
-            </div>
-          )}
-        </div>
+                    <div className="prose prose-invert max-w-none text-gray-300 mb-8 whitespace-pre-wrap leading-relaxed text-sm md:text-base">
+                      {post.content}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-white/10">
+                      <button 
+                        onClick={() => handleLike(post.id)} 
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all ${isLikedByMe ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-transparent'}`}
+                      >
+                        <span className={isLikedByMe ? "scale-110" : "opacity-70"}>❤️</span> 
+                        {post._count.likes}
+                      </button>
+
+                      <button 
+                        onClick={() => toggleComments(post.id)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all ${showComments ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-transparent'}`}
+                      >
+                        <span>💬</span> {post._count.comments}
+                      </button>
+
+                      <span className="ml-auto flex items-center gap-2 text-sm text-gray-500 bg-black/30 px-3 py-1 rounded-full">
+                        {post.author?.photoUrl && <img src={post.author.photoUrl} className="w-5 h-5 rounded-full opacity-70" />}
+                        {post.author?.firstName || "Админ"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* СЕКЦИЯ КОММЕНТАРИЕВ */}
+                  {showComments && (
+                    <div className="bg-black/40 border-t border-white/5 p-6">
+                      <div className="space-y-4 mb-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {post.comments?.length === 0 ? (
+                          <p className="text-gray-500 text-sm italic text-center py-4">Будьте первым, кто оставит комментарий!</p>
+                        ) : (
+                          post.comments.map((comment: any) => (
+                            <div key={comment.id} className="flex gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-white/5">
+                              {comment.author?.photoUrl ? (
+                                <img src={comment.author.photoUrl} alt="ava" className="w-8 h-8 rounded-full flex-shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 text-xs">?</div>
+                              )}
+                              <div>
+                                <div className="flex items-baseline gap-2 mb-1">
+                                  <span className="text-sm font-bold text-gray-200">{comment.author?.firstName || "Ученик"}</span>
+                                  <span className="text-[10px] text-gray-500">{new Date(comment.createdAt).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-sm text-gray-400 leading-snug">{comment.content}</p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Поле ввода комментария */}
+                      {user ? (
+                        <div className="flex gap-3">
+                          <input 
+                            type="text" 
+                            placeholder="Написать комментарий..." 
+                            value={commentTexts[post.id] || ""}
+                            onChange={(e) => setCommentTexts({...commentTexts, [post.id]: e.target.value})}
+                            onKeyDown={(e) => e.key === 'Enter' && submitComment(post.id)}
+                            className="flex-grow bg-[#121212] border border-white/10 rounded-lg px-4 text-sm text-white focus:outline-none focus:border-yellow-400 transition"
+                          />
+                          <button 
+                            onClick={() => submitComment(post.id)}
+                            className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold px-4 py-2 rounded-lg text-sm uppercase tracking-wider transition"
+                          >
+                            Отправить
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-center p-3 border border-dashed border-white/10 rounded-lg text-sm text-gray-500">
+                          Авторизуйтесь, чтобы оставлять комментарии
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
