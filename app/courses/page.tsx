@@ -94,25 +94,29 @@ export default function CoursesPage() {
           </h1>
       </div>
         
+        {/* ИСПРАВЛЕННЫЙ КОНТЕЙНЕР ПРАВОЙ ЧАСТИ */}
         <div className="flex gap-6 items-center mt-6 md:mt-0">
+            {/* Добавлено flex-shrink-0 и убрано w-full */}
             <Link 
               href="/news" 
-              className="block w-full py-3 px-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold uppercase tracking-widest rounded-lg transition-colors text-center"
+              className="flex-shrink-0 block py-3 px-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold uppercase tracking-widest rounded-lg transition-colors text-center"
             >
               Новости
             </Link>
             
             {user?.isAdmin && (
+                // Добавлено flex-shrink-0
                 <Link 
                   href="/admin" 
-                  className="text-gray-400 hover:text-white transition font-bold uppercase text-sm tracking-widest border border-transparent hover:border-white/20 px-4 py-2 rounded"
+                  className="flex-shrink-0 text-gray-400 hover:text-white transition font-bold uppercase text-sm tracking-widest border border-transparent hover:border-white/20 px-4 py-2 rounded"
                 >
                     Админ-панель
                 </Link>
             )}
 
             {user ? (
-                <div className="flex items-center gap-4 bg-[#1a1a1a] border border-white/20 px-5 py-2 rounded-full shadow-lg">
+                // Добавлено flex-shrink-0
+                <div className="flex-shrink-0 flex items-center gap-4 bg-[#1a1a1a] border border-white/20 px-5 py-2 rounded-full shadow-lg">
                   {user.photo && <img src={user.photo} alt="ava" className="w-8 h-8 rounded-full ring-2 ring-white/50" />}
                   <span className="font-bold text-gray-200">
                       {user.name || `ID: ${user.id}`}
@@ -125,7 +129,8 @@ export default function CoursesPage() {
                   </button>
                 </div>
             ) : (
-                <div className="h-[40px]"> 
+                // Добавлено flex-shrink-0 и w-auto
+                <div className="flex-shrink-0 h-[40px] w-auto"> 
                     <BotLogin onAuth={handleAuth} />
                 </div>
             )}
