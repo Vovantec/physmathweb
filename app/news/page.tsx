@@ -6,7 +6,7 @@ export default function NewsPage() {
     const [loading, setLoading] = useState(true);
 
     const handleLike = async (postId: number) => {
-        // Замените YOUR_TEST_USER_ID на ID пользователя (telegramId), который есть у вас в базе (например свой ID админа)
+        // Замените YOUR_TEST_USER_ID на ID пользователя (telegramId)
         const TEST_USER_ID = "821245384";
 
         const res = await fetch(`/api/news/${postId}/like`, {
@@ -16,15 +16,17 @@ export default function NewsPage() {
         });
 
         if (res.ok) {
-            // Обновляем счетчик лайков локально (или вызываем заново fetch новостей)
+            // Получаем данные ДО вызова .map()
+            const data = await res.json();
+
             setNews(news.map(p => {
                 if (p.id === postId) {
-                    // Упрощенная логика: если сервер вернул { liked: true }, прибавляем 1, иначе отнимаем 1
-                    // В реальном приложении лучше получать актуальное количество от сервера
-                    const data = await res.json();
                     return {
                         ...p,
-                        _count: { ...p._count, likes: data.liked ? p._count.likes + 1 : p._count.likes - 1 }
+                        _count: {
+                            ...p._count,
+                            likes: data.liked ? p._count.likes + 1 : p._count.likes - 1
+                        }
                     };
                 }
                 return p;
