@@ -14,13 +14,13 @@ export default function NewsPage() {
   const [news, setNews] = useState<any[]>([]);
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
   
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<Record<number, boolean>>({});
   const [commentTexts, setCommentTexts] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    // Подтягиваем авторизацию из localStorage, как на главной странице
     const storedId = localStorage.getItem('user_id');
     if (storedId) {
       setUser({
@@ -30,7 +30,7 @@ export default function NewsPage() {
         isAdmin: localStorage.getItem('user_is_admin') === 'true'
       });
     }
-
+    setAuthChecked(true);
     fetchNews();
   }, []);
 
@@ -64,10 +64,7 @@ export default function NewsPage() {
   };
 
   const handleLike = async (postId: number) => {
-    if (!user) {
-      alert("Авторизуйтесь, чтобы ставить лайки!");
-      return;
-    }
+    if (!user) return alert("Авторизуйтесь, чтобы ставить лайки!");
 
     const res = await fetch(`/api/news/${postId}/like`, {
       method: "POST",
@@ -79,7 +76,6 @@ export default function NewsPage() {
       const data = await res.json();
       setNews(news.map(p => {
         if (p.id === postId) {
-          // Обновляем массив лайков, чтобы UI сразу отреагировал
           const updatedLikes = data.liked 
             ? [...p.likes, { userId: user.id }] 
             : p.likes.filter((l: any) => l.userId !== user.id);
@@ -118,7 +114,7 @@ export default function NewsPage() {
         }
         return p;
       }));
-      setCommentTexts({ ...commentTexts, [postId]: "" }); // Очищаем поле ввода
+      setCommentTexts({ ...commentTexts, [postId]: "" });
     }
   };
 
@@ -126,7 +122,6 @@ export default function NewsPage() {
     setExpandedComments(prev => ({ ...prev, [postId]: !prev[postId] }));
   };
 
-  // Собираем все уникальные теги из загруженных новостей
   const allTags = useMemo(() => {
     const tagsSet = new Set<string>();
     news.forEach(post => {
@@ -138,64 +133,77 @@ export default function NewsPage() {
     return Array.from(tagsSet);
   }, [news]);
 
-  // Фильтруем новости по выбранному тегу
   const filteredNews = selectedTag 
     ? news.filter(post => {
-        try {
-          return JSON.parse(post.tags || "[]").includes(selectedTag);
-        } catch(e) { return false; }
+        try { return JSON.parse(post.tags || "[]").includes(selectedTag); } 
+        catch(e) { return false; }
       })
     : news;
 
   return (
-    <div className="min-h-screen bg-[#121212] text-white">
-      {/* ШАПКА КАК НА ГЛАВНОЙ */}
-      <header className="w-full bg-[#1a1a1a] shadow-lg shadow-black/50 border-b border-white/10 sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto p-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">⚛️</span>
-            <h1 className="flex flex-col tracking-tighter uppercase font-sans">
-              <span className="text-[10px] text-yellow-400 font-bold tracking-[0.3em] mb-0.5 ml-1">by Шевелев</span>
-              <span className="text-2xl font-extrabold text-white leading-none">
-                ФИЗ<span className="text-gray-500">МАТ</span>
+    <div className="min-h-screen flex flex-col items-center p-8 bg-[#121212] text-white">
+      {/* ИДЕНТИЧНАЯ ШАПКА КАК У КУРСОВ */}
+      <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-16 border-b border-white/20 pb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-4xl md:text-5xl">⚛️</span>
+          <h1 className="flex flex-col tracking-tighter uppercase font-sans">
+              <span className="text-xs md:text-sm text-yellow-400 font-bold tracking-[0.3em] mb-1 ml-1 opacity-90">
+                  by Шевелев
               </span>
-            </h1>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <Link href="/courses" className="text-gray-400 hover:text-white transition font-bold uppercase text-sm px-4 py-2">
+              <span className="text-4xl md:text-5xl font-extrabold text-white leading-none">
+                  ФИЗ<span className="text-gray-500">МАТ</span>
+              </span>
+          </h1>
+        </div>
+        
+        <div className="flex gap-6 items-center mt-6 md:mt-0">
+            {/* Кнопка теперь ведет на курсы */}
+            <Link 
+              href="/courses" 
+              className="block w-full py-3 px-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold uppercase tracking-widest rounded-lg transition-colors text-center"
+            >
               Курсы
             </Link>
             
-            {user ? (
-              <div className="flex items-center gap-3 bg-black/40 border border-white/10 px-4 py-1.5 rounded-full">
-                {user.photo && <img src={user.photo} alt="ava" className="w-7 h-7 rounded-full" />}
-                <span className="text-sm font-bold">{user.name}</span>
-                <button onClick={handleLogout} className="text-xs text-red-400 hover:text-red-300 ml-2 font-bold uppercase">
-                  Выйти
-                </button>
-              </div>
-            ) : (
-              <div className="h-[40px] transform scale-90 origin-right">
-                <BotLogin onAuth={handleAuth} />
-              </div>
+            {user?.isAdmin && (
+                <Link 
+                  href="/admin" 
+                  className="text-gray-400 hover:text-white transition font-bold uppercase text-sm tracking-widest border border-transparent hover:border-white/20 px-4 py-2 rounded"
+                >
+                    Админ-панель
+                </Link>
             )}
-          </div>
+
+            {user ? (
+                <div className="flex items-center gap-4 bg-[#1a1a1a] border border-white/20 px-5 py-2 rounded-full shadow-lg">
+                  {user.photo && <img src={user.photo} alt="ava" className="w-8 h-8 rounded-full ring-2 ring-white/50" />}
+                  <span className="font-bold text-gray-200">
+                      {user.name || `ID: ${user.id}`}
+                  </span>
+                  <button 
+                    onClick={handleLogout}
+                    className="text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider ml-2"
+                  >
+                    Выйти
+                  </button>
+                </div>
+            ) : (
+                <div className="h-[40px]"> 
+                    <BotLogin onAuth={handleAuth} />
+                </div>
+            )}
         </div>
       </header>
 
-      {/* ОСНОВНОЙ КОНТЕНТ */}
-      <div className="max-w-4xl mx-auto p-4 md:p-8 pt-8">
-        <div className="flex justify-between items-end mb-8 border-b border-white/10 pb-4">
-          <h1 className="text-4xl font-extrabold uppercase tracking-tight">Лента <span className="text-yellow-400">Новостей</span></h1>
-        </div>
+      {/* ОСНОВНОЙ КОНТЕНТ (БЕЗ ЗАГОЛОВКА "ЛЕНТА НОВОСТЕЙ") */}
+      <main className="w-full max-w-6xl flex-grow flex flex-col">
         
         {/* ПАНЕЛЬ ТЕГОВ */}
         {allTags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-8">
+          <div className="flex flex-wrap gap-2 mb-8 justify-center md:justify-start">
             <button 
               onClick={() => setSelectedTag(null)}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${!selectedTag ? 'bg-white text-black' : 'bg-[#1a1a1a] text-gray-400 hover:bg-white/10'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${!selectedTag ? 'bg-white text-black' : 'bg-[#1a1a1a] text-gray-400 hover:bg-white/10 border border-white/10'}`}
             >
               Все
             </button>
@@ -203,7 +211,7 @@ export default function NewsPage() {
               <button 
                 key={tag}
                 onClick={() => setSelectedTag(tag)}
-                className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${selectedTag === tag ? 'bg-yellow-400 text-black' : 'bg-[#1a1a1a] text-gray-400 hover:bg-white/10'}`}
+                className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${selectedTag === tag ? 'bg-yellow-400 text-black' : 'bg-[#1a1a1a] text-gray-400 hover:bg-white/10 border border-white/10'}`}
               >
                 #{tag}
               </button>
@@ -213,23 +221,35 @@ export default function NewsPage() {
 
         {/* СПИСОК НОВОСТЕЙ */}
         {loading ? (
-          <div className="text-center py-20 text-gray-400 animate-pulse">Загрузка новостей...</div>
+          <div className="flex justify-center py-20">
+             <div className="text-center">
+                 <div className="inline-block w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
+                 <p className="text-xl text-gray-400 font-mono tracking-widest">ЗАГРУЗКА НОВОСТЕЙ...</p>
+             </div>
+          </div>
         ) : filteredNews.length === 0 ? (
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-10 text-center text-gray-400 font-mono">
+          <div className="bg-[#1a1a1a] border-2 border-dashed border-white/10 rounded-xl p-10 text-center text-gray-400 font-mono">
             Новостей пока нет.
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-8 max-w-4xl mx-auto w-full">
             {filteredNews.map((post) => {
               const tags = JSON.parse(post.tags || "[]");
               const isLikedByMe = user && post.likes.some((l: any) => l.userId === user.id);
               const showComments = expandedComments[post.id];
               
               return (
-                <article key={post.id} className="bg-[#1a1a1a] rounded-2xl border border-white/10 overflow-hidden shadow-2xl transition-all hover:border-white/20">
+                <article key={post.id} className="bg-[#1a1a1a] rounded-2xl border-2 border-white/10 overflow-hidden shadow-2xl transition-all hover:border-white/20">
+                  {/* Если есть картинка, выводим её на всю ширину карточки */}
+                  {post.imageUrl && (
+                    <div className="w-full h-64 md:h-80 overflow-hidden border-b border-white/10 bg-black">
+                      <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover opacity-90 hover:opacity-100 transition" />
+                    </div>
+                  )}
+
                   <div className="p-6 md:p-8">
                     <div className="flex justify-between items-start gap-4 mb-4">
-                      <h2 className="text-2xl font-bold text-white leading-tight">{post.title}</h2>
+                      <h2 className="text-3xl font-bold text-white leading-tight uppercase tracking-tight">{post.title}</h2>
                       <span className="text-xs font-mono text-gray-500 whitespace-nowrap bg-black/50 px-3 py-1 rounded-full border border-white/5">
                         {new Date(post.createdAt).toLocaleDateString("ru-RU", { day: 'numeric', month: 'long' })}
                       </span>
@@ -245,7 +265,7 @@ export default function NewsPage() {
                       </div>
                     )}
 
-                    <div className="prose prose-invert max-w-none text-gray-300 mb-8 whitespace-pre-wrap leading-relaxed text-sm md:text-base">
+                    <div className="prose prose-invert max-w-none text-gray-300 mb-8 whitespace-pre-wrap leading-relaxed text-sm md:text-base border-l-2 border-white/10 pl-4">
                       {post.content}
                     </div>
 
@@ -265,8 +285,8 @@ export default function NewsPage() {
                         <span>💬</span> {post._count.comments}
                       </button>
 
-                      <span className="ml-auto flex items-center gap-2 text-sm text-gray-500 bg-black/30 px-3 py-1 rounded-full">
-                        {post.author?.photoUrl && <img src={post.author.photoUrl} className="w-5 h-5 rounded-full opacity-70" />}
+                      <span className="ml-auto flex items-center gap-2 text-sm text-gray-500 font-bold uppercase tracking-widest">
+                        {post.author?.photoUrl && <img src={post.author.photoUrl} className="w-6 h-6 rounded-full opacity-70 border border-white/20" />}
                         {post.author?.firstName || "Админ"}
                       </span>
                     </div>
@@ -277,10 +297,10 @@ export default function NewsPage() {
                     <div className="bg-black/40 border-t border-white/5 p-6">
                       <div className="space-y-4 mb-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                         {post.comments?.length === 0 ? (
-                          <p className="text-gray-500 text-sm italic text-center py-4">Будьте первым, кто оставит комментарий!</p>
+                          <p className="text-gray-500 text-sm italic text-center py-4 font-mono">Будьте первым, кто оставит комментарий!</p>
                         ) : (
                           post.comments.map((comment: any) => (
-                            <div key={comment.id} className="flex gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-white/5">
+                            <div key={comment.id} className="flex gap-3 bg-[#1a1a1a] p-4 rounded-xl border border-white/5">
                               {comment.author?.photoUrl ? (
                                 <img src={comment.author.photoUrl} alt="ava" className="w-8 h-8 rounded-full flex-shrink-0" />
                               ) : (
@@ -289,7 +309,7 @@ export default function NewsPage() {
                               <div>
                                 <div className="flex items-baseline gap-2 mb-1">
                                   <span className="text-sm font-bold text-gray-200">{comment.author?.firstName || "Ученик"}</span>
-                                  <span className="text-[10px] text-gray-500">{new Date(comment.createdAt).toLocaleDateString()}</span>
+                                  <span className="text-[10px] text-gray-500 font-mono">{new Date(comment.createdAt).toLocaleDateString()}</span>
                                 </div>
                                 <p className="text-sm text-gray-400 leading-snug">{comment.content}</p>
                               </div>
@@ -298,7 +318,6 @@ export default function NewsPage() {
                         )}
                       </div>
 
-                      {/* Поле ввода комментария */}
                       {user ? (
                         <div className="flex gap-3">
                           <input 
@@ -317,7 +336,7 @@ export default function NewsPage() {
                           </button>
                         </div>
                       ) : (
-                        <div className="text-center p-3 border border-dashed border-white/10 rounded-lg text-sm text-gray-500">
+                        <div className="text-center p-3 border border-dashed border-white/10 rounded-lg text-sm text-gray-500 font-mono">
                           Авторизуйтесь, чтобы оставлять комментарии
                         </div>
                       )}
@@ -328,7 +347,7 @@ export default function NewsPage() {
             })}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

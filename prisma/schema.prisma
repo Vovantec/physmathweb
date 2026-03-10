@@ -165,6 +165,7 @@ model NewsPost {
   title     String
   content   String    // Текст поста (можно будет хранить HTML или Markdown)
   tags      String?   @default("[]") // JSON-строка с массивом тегов, например '["физика", "анонс"]'
+  imageUrl  String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

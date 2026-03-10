@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function AdminNewsPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   
@@ -15,7 +15,6 @@ export default function AdminNewsPage() {
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    // Загружаем текущие новости для списка
     fetch("/api/admin/news")
       .then(res => res.json())
       .then(data => {
@@ -46,14 +45,14 @@ export default function AdminNewsPage() {
     
     setLoading(true);
     try {
-      // Отправляем запрос на создание новости
       const res = await fetch("/api/admin/news", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           title, 
           content, 
-          tags: JSON.stringify(tags), // Отправляем как JSON строку, как требует схема
+          imageUrl, // Отправляем картинку
+          tags: JSON.stringify(tags),
           authorId: localStorage.getItem('user_id') 
         }),
       });
@@ -62,8 +61,8 @@ export default function AdminNewsPage() {
         alert("Новость успешно опубликована!");
         setTitle("");
         setContent("");
+        setImageUrl("");
         setTags([]);
-        // Обновляем список
         const newPost = await res.json();
         setNews([newPost, ...news]);
       } else {
@@ -79,8 +78,6 @@ export default function AdminNewsPage() {
 
   const handleDelete = async (id: number) => {
     if(!confirm("Точно удалить новость?")) return;
-    
-    // Предполагается, что в API есть метод DELETE
     const res = await fetch(`/api/admin/news?id=${id}`, { method: "DELETE" });
     if(res.ok) {
       setNews(news.filter(n => n.id !== id));
@@ -89,27 +86,23 @@ export default function AdminNewsPage() {
 
   return (
     <div className="min-h-screen bg-[#121212] text-white p-6 md:p-12">
-      <div className="max-w-5xl mx-auto flex flex-col gap-8">
+      <div className="max-w-[1400px] mx-auto flex flex-col gap-8">
         
         {/* Шапка админки */}
         <div className="flex items-center justify-between border-b border-white/10 pb-6">
-          <div>
-            <Link href="/admin" className="text-gray-400 hover:text-white transition text-sm font-bold uppercase flex items-center gap-2 mb-2">
-              <span>←</span> В админ-панель
-            </Link>
-            <h1 className="text-3xl font-extrabold uppercase tracking-tight">Управление <span className="text-yellow-400">Новостями</span></h1>
-          </div>
+          <h1 className="text-3xl font-extrabold uppercase tracking-tight">Управление <span className="text-yellow-400">Новостями</span></h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        {/* Принудительная сетка из 2 колонок по горизонтали */}
+        <div className="grid grid-cols-2 gap-12">
           
           {/* ЛЕВАЯ КОЛОНКА: ФОРМА СОЗДАНИЯ */}
-          <div className="bg-[#1a1a1a] p-8 rounded-2xl border border-white/10 shadow-2xl">
+          <div className="bg-[#1a1a1a] p-8 rounded-2xl border border-white/10 shadow-2xl h-fit">
             <h2 className="text-xl font-bold uppercase tracking-widest mb-6 flex items-center gap-3">
               <span className="text-2xl">✍️</span> Создать пост
             </h2>
             
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Заголовок новости</label>
                 <input 
@@ -119,6 +112,17 @@ export default function AdminNewsPage() {
                   className="w-full bg-[#121212] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-yellow-400 transition"
                   placeholder="Внимание! Важный анонс..."
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Обложка (URL картинки)</label>
+                <input 
+                  type="text" 
+                  value={imageUrl}
+                  onChange={e => setImageUrl(e.target.value)}
+                  className="w-full bg-[#121212] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-yellow-400 transition"
+                  placeholder="https://example.com/image.jpg (необязательно)"
                 />
               </div>
 
@@ -137,17 +141,17 @@ export default function AdminNewsPage() {
                     onChange={e => setTagInput(e.target.value)}
                     onKeyDown={handleAddTag}
                     className="bg-transparent border-none outline-none text-white flex-grow min-w-[120px] text-sm"
-                    placeholder={tags.length === 0 ? "Например: физика, турнир" : ""}
+                    placeholder={tags.length === 0 ? "Например: физика" : ""}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Содержание (поддерживает переносы строк)</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Содержание</label>
                 <textarea 
                   value={content}
                   onChange={e => setContent(e.target.value)}
-                  className="w-full bg-[#121212] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-yellow-400 transition h-48 resize-none custom-scrollbar"
+                  className="w-full bg-[#121212] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-yellow-400 transition h-40 resize-none custom-scrollbar"
                   placeholder="Текст вашей новости..."
                   required
                 />
@@ -169,7 +173,7 @@ export default function AdminNewsPage() {
               <span className="text-2xl">🗂</span> Опубликованное
             </h2>
             
-            <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
               {fetching ? (
                 <div className="text-gray-500 animate-pulse">Загрузка постов...</div>
               ) : news.length === 0 ? (
@@ -180,31 +184,40 @@ export default function AdminNewsPage() {
                 news.map(post => {
                   const postTags = JSON.parse(post.tags || "[]");
                   return (
-                    <div key={post.id} className="bg-[#1a1a1a] border border-white/10 p-5 rounded-xl relative group">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-white text-lg pr-8">{post.title}</h3>
-                        <button 
-                          onClick={() => handleDelete(post.id)}
-                          className="absolute top-5 right-5 text-red-500/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-                          title="Удалить новость"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      
-                      <p className="text-sm text-gray-400 line-clamp-2 mb-3">
-                        {post.content}
-                      </p>
-                      
-                      <div className="flex justify-between items-center text-xs">
-                        <div className="flex gap-2">
-                          {postTags.map((t: string) => (
-                            <span key={t} className="text-gray-500 bg-white/5 px-2 py-0.5 rounded">#{t}</span>
-                          ))}
+                    <div key={post.id} className="bg-[#1a1a1a] border border-white/10 p-5 rounded-xl relative group flex gap-4">
+                      {/* Миниатюра картинки в админке */}
+                      {post.imageUrl && (
+                        <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-black border border-white/10">
+                          <img src={post.imageUrl} className="w-full h-full object-cover opacity-80" alt="cover" />
                         </div>
-                        <span className="text-gray-600 font-mono">
-                          {new Date(post.createdAt).toLocaleDateString()}
-                        </span>
+                      )}
+                      
+                      <div className="flex-grow">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-bold text-white text-lg pr-8 leading-tight">{post.title}</h3>
+                          <button 
+                            onClick={() => handleDelete(post.id)}
+                            className="absolute top-5 right-5 text-red-500/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                            title="Удалить новость"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        
+                        <p className="text-sm text-gray-400 line-clamp-2 mb-3">
+                          {post.content}
+                        </p>
+                        
+                        <div className="flex justify-between items-center text-xs">
+                          <div className="flex gap-2">
+                            {postTags.map((t: string) => (
+                              <span key={t} className="text-yellow-400/80 bg-white/5 px-2 py-0.5 rounded border border-white/5 uppercase font-bold tracking-widest text-[10px]">#{t}</span>
+                            ))}
+                          </div>
+                          <span className="text-gray-600 font-mono">
+                            {new Date(post.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
