@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 
     if (!user) return NextResponse.json({ status: 'ERROR', message: 'User not found' });
 
-    // === ГЕНЕРАЦИЯ КУКИ (НОВОЕ) ===
+    // === ГЕНЕРАЦИЯ КУКИ ===
     const jwtSecret = process.env.BOT_TOKEN || 'secret';
     const sessionToken = jwt.sign(
       { userId: user.telegramId.toString() }, 
@@ -39,8 +39,8 @@ export async function GET(request: Request) {
     const response = NextResponse.json({ 
       status: 'SUCCESS', 
       user: {
-        id: user.id.toString(),
-        telegramId: user.telegramId.toString(),
+        id: user.telegramId.toString(), 
+        dbId: user.id.toString(),
         name: user.firstName || user.username,
         photo: user.photoUrl,
         isAdmin: user.isAdmin
