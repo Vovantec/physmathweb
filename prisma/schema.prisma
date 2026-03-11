@@ -206,19 +206,15 @@ model Like {
 
 model Base {
   id          String   @id @default(uuid())
-  userId      String   @unique
+  userId      Int      @unique 
+
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // Координаты на глобальной карте
   mapX        Int
   mapY        Int
 
-  // Экономика (JSON для гибкости добавления новых типов ресурсов)
-  resources   Json     @default("{\"money\": 1000, \"uranium\": 0, \"steel\": 500, \"energy\": 100}")
-  
-  // Застройка (список зданий и их уровни)
-  buildings   Json     @default("[]")
-  
+  resources   String   @default("{\"money\": 1000, \"uranium\": 0, \"steel\": 500, \"energy\": 100}")
+  buildings   String   @default("[]")
   sciencePts  Int      @default(0)
   
   createdAt   DateTime @default(now())
