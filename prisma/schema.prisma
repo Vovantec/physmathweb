@@ -21,6 +21,9 @@ model User {
   newsPosts  NewsPost[] @relation("AuthoredNews")
   comments   Comment[]  @relation("UserComments")
   likes      Like[]     @relation("UserLikes")
+  base          Base?
+  allianceId    String?
+  alliance      Alliance? @relation(fields: [allianceId], references: [id])
 }
 
 model Course {
@@ -199,4 +202,35 @@ model Like {
 
   // Защита: один пользователь может поставить только один лайк одному посту
   @@unique([postId, userId]) 
+}
+
+model Base {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Координаты на глобальной карте
+  mapX        Int
+  mapY        Int
+
+  // Экономика (JSON для гибкости добавления новых типов ресурсов)
+  resources   Json     @default("{\"money\": 1000, \"uranium\": 0, \"steel\": 500, \"energy\": 100}")
+  
+  // Застройка (список зданий и их уровни)
+  buildings   Json     @default("[]")
+  
+  sciencePts  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([mapX, mapY])
+}
+
+model Alliance {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  tag         String   @unique
+  members     User[]
+  createdAt   DateTime @default(now())
 }
