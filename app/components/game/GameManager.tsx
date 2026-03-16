@@ -5,7 +5,10 @@ import * as Colyseus from "colyseus.js";
 import dynamic from "next/dynamic";
 
 // Three.js грузим динамически (SSR отключён)
-const ThreeScene = dynamic(() => import("./ThreeScene"), { ssr: false });
+const ThreeScene = dynamic(
+  () => import("@/app/components/game/ThreeScene"),
+  { ssr: false }
+);
 
 // ============================================================
 // ТИПЫ
