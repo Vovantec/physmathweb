@@ -398,12 +398,13 @@ export default function ThreeScene({ buildings, missiles, selectedBuildingId, on
     scene.add(ground);
     scene.add(new THREE.GridHelper(GRID_SIZE*CELL_SIZE, GRID_SIZE, 0x1c313a, 0x1c313a));
 
-    // КЛИКАБЕЛЬНАЯ ПЛОСКОСТЬ
+    // КЛИКАБЕЛЬНАЯ ПЛОСКОСТЬ — большая, чтобы всегда попадать при любом зуме
     const clickPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(GRID_SIZE*CELL_SIZE, GRID_SIZE*CELL_SIZE),
+      new THREE.PlaneGeometry(2000, 2000),
       new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
     );
     clickPlane.rotation.x = -Math.PI/2;
+    clickPlane.position.y = 0.02; // чуть выше земли чтобы не конкурировал с ground
     clickPlane.name = "clickPlane";
     scene.add(clickPlane);
     clickPlaneRef.current = clickPlane;
@@ -434,46 +435,96 @@ export default function ThreeScene({ buildings, missiles, selectedBuildingId, on
     const mouse = new THREE.Vector2();
 
     const handleClick = (e: MouseEvent) => {
+      // Не срабатываем если это был drag
+      if (pointerMoved) return;
+
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left)/rect.width)*2 - 1;
       mouse.y = -((e.clientY - rect.top)/rect.height)*2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
-      // Клик по зданию?
+      // Сначала проверяем клик по зданию
       const buildingMeshList: THREE.Object3D[] = [];
-      buildingMeshes.current.forEach(g => g.traverse(c => { if ((c as THREE.Mesh).isMesh) buildingMeshList.push(c); }));
-      const bHits = raycaster.intersectObjects(buildingMeshList);
+      buildingMeshes.current.forEach(g => g.traverse(c => {
+        if ((c as THREE.Mesh).isMesh) buildingMeshList.push(c);
+      }));
+      const bHits = raycaster.intersectObjects(buildingMeshList, true);
       if (bHits.length > 0 && onBuildingClick) {
         let obj: THREE.Object3D | null = bHits[0].object;
-        while (obj && obj.parent && !(obj as any).__buildingId) obj = obj.parent;
-        if ((obj as any).__buildingId) { onBuildingClick((obj as any).__buildingId); return; }
+        // Идём вверх по иерархии ища buildingId
+        while (obj) {
+          if ((obj as any).__buildingId) {
+            onBuildingClick((obj as any).__buildingId);
+            return;
+          }
+          obj = obj.parent;
+        }
       }
 
-      // Клик по земле
-      const hits = raycaster.intersectObject(clickPlane);
-      if (hits.length > 0 && onCellClick) {
-        const p = hits[0].point;
-        const gx = Math.floor((p.x + GRID_OFFSET)/CELL_SIZE);
-        const gy = Math.floor((p.z + GRID_OFFSET)/CELL_SIZE);
-        if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) onCellClick(gx, gy);
+      // Клик по земле — используем бесконечную плоскость для надёжности
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const ray = raycaster.ray;
+      const target = new THREE.Vector3();
+      ray.intersectPlane(groundPlane, target);
+
+      if (target && onCellClick) {
+        // Конвертируем мировые координаты в координаты сетки
+        const gx = Math.floor((target.x + GRID_OFFSET) / CELL_SIZE);
+        const gy = Math.floor((target.z + GRID_OFFSET) / CELL_SIZE);
+        if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
+          onCellClick(gx, gy);
+        }
       }
     };
     renderer.domElement.addEventListener("click", handleClick);
 
-    // УПРАВЛЕНИЕ КАМЕРОЙ
+
+    // ── ИЗОМЕТРИЧЕСКАЯ КАМЕРА ─────────────────────────────
+    // Фиксируем offset камеры. Двигаем только "цель" — камера
+    // всегда следует с тем же углом (истинная изометрия).
+    const CAM_OFFSET = new THREE.Vector3(0, 28, 22);
+    const camTarget  = new THREE.Vector3(0, 0, 0);
+
+    const updateCamera = () => {
+      camera.position.copy(camTarget).add(CAM_OFFSET);
+      camera.lookAt(camTarget);
+    };
+    updateCamera();
+
+    // Обновляем clickPlane позицию вместе с camTarget
+    // чтобы raycast всегда попадал в видимую область
+    const updateClickPlane = () => {
+      clickPlane.position.set(camTarget.x, 0, camTarget.z);
+    };
+
     let isDown = false, lastX = 0, lastY = 0;
-    renderer.domElement.addEventListener("pointerdown", e => { isDown = true; lastX = e.clientX; lastY = e.clientY; });
-    renderer.domElement.addEventListener("pointerup",   () => { isDown = false; });
-    renderer.domElement.addEventListener("pointermove", e => {
-      if (!isDown) return;
-      camera.position.x -= (e.clientX - lastX)*0.06;
-      camera.position.z -= (e.clientY - lastY)*0.06;
-      camera.lookAt(camera.position.x, 0, camera.position.z);
+    let pointerMoved = false;
+
+    renderer.domElement.addEventListener("pointerdown", e => {
+      isDown = true; pointerMoved = false;
       lastX = e.clientX; lastY = e.clientY;
     });
-    renderer.domElement.addEventListener("wheel", e => {
-      camera.position.y = Math.max(6, Math.min(55, camera.position.y + e.deltaY*0.05));
+    renderer.domElement.addEventListener("pointerup", () => { isDown = false; });
+    renderer.domElement.addEventListener("pointermove", e => {
+      if (!isDown) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) pointerMoved = true;
+      camTarget.x -= dx * 0.05;
+      camTarget.z -= dy * 0.05;
+      updateCamera();
+      lastX = e.clientX; lastY = e.clientY;
     });
+
+    renderer.domElement.addEventListener("wheel", e => {
+      const factor = 1 + e.deltaY * 0.002;
+      CAM_OFFSET.multiplyScalar(factor);
+      const len = CAM_OFFSET.length();
+      if (len < 12) CAM_OFFSET.setLength(12);
+      if (len > 90) CAM_OFFSET.setLength(90);
+      updateCamera();
+    }, { passive: true });
+
 
     window.addEventListener("resize", () => {
       camera.aspect = mount.clientWidth/mount.clientHeight;
