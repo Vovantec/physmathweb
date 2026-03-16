@@ -1,20 +1,54 @@
-import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { checkInternalAuth, jsonResponse } from "@/lib/internal-api";
 
-const SECRET = process.env.BOT_TOKEN || 'secret';
+// GET — загрузить базу
+export async function GET(request: Request) {
+  if (!checkInternalAuth(request)) return jsonResponse({ error: "Unauthorized" }, 401);
 
-export async function POST(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get("userId");
+  if (!userId) return jsonResponse({ error: "userId required" }, 400);
+
   try {
-    const body = await request.json();
-    const { userId, username } = body;
+    const user = await prisma.user.findUnique({
+      where: { telegramId: BigInt(userId) },
+      include: { base: true },
+    });
 
-    if (!userId) return NextResponse.json({ error: 'No userId' }, { status: 400 });
+    if (!user) return jsonResponse({ error: "User not found" }, 404);
 
-    // Создаем токен, который будет жить 1 час
-    const token = jwt.sign({ userId, username }, SECRET, { expiresIn: '1h' });
-
-    return NextResponse.json({ token });
+    return jsonResponse({
+      base: user.base,
+      username: user.firstName || user.username || "Командир",
+    });
   } catch (e) {
-    return NextResponse.json({ error: 'Error generating token' }, { status: 500 });
+    console.error(e);
+    return jsonResponse({ error: "Server error" }, 500);
+  }
+}
+
+// POST — сохранить базу
+export async function POST(request: Request) {
+  if (!checkInternalAuth(request)) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  try {
+    const { userId, buildings, resources } = await request.json();
+    if (!userId) return jsonResponse({ error: "userId required" }, 400);
+
+    const user = await prisma.user.findUnique({
+      where: { telegramId: BigInt(userId) },
+    });
+    if (!user) return jsonResponse({ error: "User not found" }, 404);
+
+    await prisma.base.update({
+      where: { userId: user.id },
+      data: { buildings, resources },
+    });
+
+    return jsonResponse({ success: true });
+  } catch (e) {
+    console.error(e);
+    return jsonResponse({ error: "Server error" }, 500);
   }
 }
