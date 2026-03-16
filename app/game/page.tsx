@@ -2,10 +2,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import GameManager from "@/app/components/game/GameManager";
+import GameClientWrapper from "./GameClientWrapper";
 
 const GAME_JWT_SECRET = process.env.GAME_JWT_SECRET || "change_me_secret";
 const BOT_TOKEN       = process.env.BOT_TOKEN       || "secret";
+
+// Отключаем статическую генерацию — страница всегда динамическая
+export const dynamic = "force-dynamic";
 
 async function getCurrentUser(uidFromQuery?: string) {
   let telegramId: bigint | null = null;
@@ -33,13 +36,12 @@ async function getCurrentUser(uidFromQuery?: string) {
       include: { base: true },
     });
   } catch (e: any) {
-    console.error("[game/page] prisma include base error:", e?.message);
+    console.error("[game/page] prisma error:", e?.message);
     try {
       const user = await prisma.user.findUnique({ where: { telegramId } });
       if (!user) return null;
       return { ...user, base: null };
-    } catch (e2: any) {
-      console.error("[game/page] prisma fallback error:", e2?.message);
+    } catch {
       return null;
     }
   }
@@ -54,10 +56,10 @@ export default async function GamePage({
   const user = await getCurrentUser(params.uid);
 
   if (!user) {
-    console.warn("[game/page] user not found, uid:", params.uid);
     redirect("/");
   }
 
+  // Создаём базу если нет
   if (!user.base) {
     try {
       const mapX = 50 + Math.floor(Math.random() * 400);
@@ -79,9 +81,11 @@ export default async function GamePage({
     { expiresIn: "2h" }
   );
 
+  // Рендерим только серверную обёртку с данными.
+  // GameManager грузится исключительно на клиенте через GameClientWrapper.
   return (
-    <div className="w-full h-screen overflow-hidden">
-      <GameManager
+    <div className="w-full h-screen overflow-hidden" suppressHydrationWarning>
+      <GameClientWrapper
         userId={user.telegramId.toString()}
         gameToken={gameToken}
       />
