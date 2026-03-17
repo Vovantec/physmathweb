@@ -1,23 +1,33 @@
 // app/components/SiteHeader.tsx
-// Путь: app/components/SiteHeader.tsx
-//
-// Единая шапка для /courses, /news, /leaderboard.
-// Имя пользователя кликабельно и ведёт на /profile.
-
 'use client'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useAuth, type AuthUser } from '@/app/hooks/useAuth'
 import BotLogin from './BotLogin'
 
 interface SiteHeaderProps {
-  /** Активная страница — подсвечивает нужную кнопку */
   activePage?: 'news' | 'courses' | 'leaderboard' | 'chat'
-  /** Callback после успешного входа (если нужен на странице) */
   onAuth?: (user: AuthUser) => void
 }
 
 export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
   const { user, loading, logout, setUser } = useAuth()
+  const [chatUnread, setChatUnread] = useState<{ total: number; muted: boolean } | null>(null)
+
+  // Poll unread count every 15s when user is logged in
+  useEffect(() => {
+    if (!user) { setChatUnread(null); return }
+
+    const fetch_ = () =>
+      fetch('/api/chat/unread')
+        .then(r => r.json())
+        .then(d => setChatUnread(d))
+        .catch(() => {})
+
+    fetch_()
+    const id = setInterval(fetch_, 15_000)
+    return () => clearInterval(id)
+  }, [user])
 
   const handleAuth = (userData: any) => {
     const u: AuthUser = {
@@ -30,13 +40,6 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
     setUser(u)
     onAuth?.(u)
   }
-
-  const navLinks = [
-    { href: '/news',        label: 'Новости',  key: 'news'        },
-    { href: '/courses',     label: 'Курсы',    key: 'courses'     },
-    { href: '/leaderboard', label: '🏆 Рейтинг', key: 'leaderboard' },
-    { href: '/chat',        label: '💬 Чат',   key: 'chat'        },
-  ]
 
   return (
     <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-16 border-b border-white/20 pb-6">
@@ -55,19 +58,38 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
 
       {/* Nav + auth */}
       <div className="flex gap-3 items-center mt-6 md:mt-0 flex-wrap justify-center">
-        {navLinks.map(link => (
-          <Link
-            key={link.key}
-            href={link.href}
-            className={`flex-shrink-0 py-2.5 px-4 rounded-lg font-bold uppercase tracking-widest text-sm transition ${
-              activePage === link.key
-                ? 'bg-yellow-400 text-black'
-                : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
-            }`}
-          >
-            {link.label}
-          </Link>
-        ))}
+
+        {/* Новости */}
+        <NavLink href="/news" label="Новости" active={activePage === 'news'} />
+
+        {/* Курсы */}
+        <NavLink href="/courses" label="Курсы" active={activePage === 'courses'} />
+
+        {/* Рейтинг */}
+        <NavLink href="/leaderboard" label="🏆 Рейтинг" active={activePage === 'leaderboard'} />
+
+        {/* Чат — с бейджом непрочитанных */}
+        <Link
+          href="/chat"
+          className={`relative flex-shrink-0 py-2.5 px-4 rounded-lg font-bold uppercase tracking-widest text-sm transition ${
+            activePage === 'chat'
+              ? 'bg-yellow-400 text-black'
+              : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
+          }`}
+        >
+          💬 Чат
+          {chatUnread && chatUnread.total > 0 && (
+            <span
+              className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center leading-none ${
+                chatUnread.muted
+                  ? 'bg-gray-600 text-gray-300'
+                  : 'bg-red-500 text-white'
+              }`}
+            >
+              {chatUnread.total > 99 ? '99+' : chatUnread.total}
+            </span>
+          )}
+        </Link>
 
         {user?.isAdmin && (
           <Link
@@ -82,7 +104,6 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
         {!loading && (
           user ? (
             <div className="flex-shrink-0 flex items-center gap-3">
-              {/* Кликабельный профиль */}
               <Link
                 href="/profile"
                 className="flex items-center gap-2.5 bg-[#1a1a1a] border border-white/15 hover:border-yellow-400/50 px-3 py-2 rounded-xl transition group"
@@ -101,7 +122,6 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
                 </span>
               </Link>
 
-              {/* Отдельная кнопка выхода */}
               <button
                 onClick={logout}
                 className="text-xs text-gray-500 hover:text-red-400 border border-white/10 hover:border-red-500/30 px-3 py-2 rounded-xl transition font-mono uppercase tracking-widest"
@@ -118,5 +138,20 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
         )}
       </div>
     </header>
+  )
+}
+
+function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`flex-shrink-0 py-2.5 px-4 rounded-lg font-bold uppercase tracking-widest text-sm transition ${
+        active
+          ? 'bg-yellow-400 text-black'
+          : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
+      }`}
+    >
+      {label}
+    </Link>
   )
 }

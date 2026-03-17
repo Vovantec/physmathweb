@@ -59,8 +59,16 @@ export async function GET() {
       return response
     }
 
+    // Re-issue a short-lived WS token (DB userId for WS server)
+    const wsToken = jwt.sign(
+      { userId: user.id, telegramId: user.telegramId.toString() },
+      SECRET,
+      { expiresIn: '1h' }
+    )
+
     return NextResponse.json({
       authenticated: true,
+      token: wsToken,
       user: {
         id:      user.telegramId.toString(),
         dbId:    user.id.toString(),

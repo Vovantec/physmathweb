@@ -32,6 +32,8 @@ model User {
   parentAccess    ParentAccess[]
   notificationSettings  NotificationSettings?
   prizeAwards           PrizeAward[]
+  chatMessages    ChatMessage[]
+  chatReadPointers ChatReadPointer[]
 }
 
 model Course {
@@ -277,6 +279,7 @@ model NotificationSettings {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatMuted  Boolean  @default(false)
 }
 
 model NotificationLog {
@@ -337,4 +340,41 @@ model PrizeAward {
   winner    User      @relation(fields: [winnerId], references: [id])
 
   @@unique([poolId, place])
+}
+
+model ChatChannel {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  isPinned    Boolean   @default(false)
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  messages    ChatMessage[]
+  readPointers ChatReadPointer[]
+}
+
+model ChatMessage {
+  id        Int       @id @default(autoincrement())
+  channelId Int
+  userId    Int
+  content   String
+  createdAt DateTime  @default(now())
+  editedAt  DateTime?
+  deletedAt DateTime?
+  channel   ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ChatReadPointer {
+  userId        Int
+  channelId     Int
+  lastReadMsgId Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel       ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([userId, channelId])
 }
