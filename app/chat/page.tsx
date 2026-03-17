@@ -47,6 +47,7 @@ export default function ChatPage() {
   const [muted, setMuted]               = useState(false)
 
   const wsRef         = useRef<WebSocket | null>(null)
+  const wsReady       = useRef<boolean>(false)   // true after auth_ok + join
   const bottomRef     = useRef<HTMLDivElement>(null)
   const messagesRef   = useRef<HTMLDivElement>(null)
   const typingTimer   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -86,25 +87,41 @@ export default function ChatPage() {
 
     const ws = new WebSocket(WS_URL)
     wsRef.current = ws
+    wsReady.current = false
 
     ws.onopen = () => {
-      // Auth: get token from cookie via API
+      console.log('[WS] connected, authenticating...')
       fetch('/api/auth/me')
         .then(r => r.json())
         .then(d => {
-          if (d.token) ws.send(JSON.stringify({ type: 'auth', token: d.token }))
+          if (d.token) {
+            console.log('[WS] sending auth token')
+            ws.send(JSON.stringify({ type: 'auth', token: d.token }))
+          } else {
+            console.error('[WS] No token in /api/auth/me response')
+          }
         })
     }
+
+    ws.onerror = (e) => { console.error('[WS] error', e) }
+    ;(window as any)._ws = ws
 
     ws.onmessage = (e) => {
       let msg: any
       try { msg = JSON.parse(e.data) } catch { return }
 
       if (msg.type === 'auth_ok') {
-        // Join current channel
+        console.log('[WS] auth_ok, activeChannel=', activeIdRef.current)
+        wsReady.current = true
         if (activeIdRef.current) {
+          console.log('[WS] joining channel', activeIdRef.current)
           ws.send(JSON.stringify({ type: 'join', channelId: activeIdRef.current }))
         }
+        return
+      }
+
+      if (msg.type === 'auth_error') {
+        console.error('[WS] auth failed')
         return
       }
 
@@ -158,7 +175,11 @@ export default function ChatPage() {
 
     // Join WS room
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'join', channelId: activeId }))
+      if (wsReady.current) {
+        console.log('[WS] switching to channel', activeId)
+        wsRef.current.send(JSON.stringify({ type: 'join', channelId: activeId }))
+      }
+      // If not ready yet — auth_ok handler will join using activeIdRef.current
     }
 
     // Load history
@@ -220,7 +241,11 @@ export default function ChatPage() {
   // ── Send ──────────────────────────────────────────────────────────────────
   const send = () => {
     const content = input.trim()
-    if (!content || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    if (!content) return
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !wsReady.current) {
+      console.warn('[WS] not ready, readyState=', wsRef.current?.readyState, 'wsReady=', wsReady.current)
+      return
+    }
     wsRef.current.send(JSON.stringify({ type: 'message', content }))
     setInput('')
   }
@@ -353,15 +378,31 @@ export default function ChatPage() {
                 className={`w-full text-left px-4 py-3 flex items-center gap-2 transition border-b border-white/5 last:border-0 ${
                   activeId === ch.id
                     ? 'bg-yellow-400/10 border-l-2 border-l-yellow-400'
+                    : ch.isDefault
+                    ? 'bg-white/3 hover:bg-white/8'
                     : 'hover:bg-white/5'
                 }`}
               >
                 <div className="flex-grow min-w-0">
                   <div className="flex items-center gap-1.5">
-                    {ch.isPinned && <span className="text-xs text-yellow-400">📌</span>}
-                    <span className={`font-bold text-sm truncate ${activeId === ch.id ? 'text-yellow-400' : 'text-white'}`}>
+                    {ch.isDefault
+                      ? <span className="text-xs text-yellow-400/70">#</span>
+                      : ch.isPinned && <span className="text-xs text-gray-500">📌</span>
+                    }
+                    <span className={`font-bold text-sm truncate ${
+                      activeId === ch.id
+                        ? 'text-yellow-400'
+                        : ch.isDefault
+                        ? 'text-white'
+                        : 'text-gray-300'
+                    }`}>
                       {ch.name}
                     </span>
+                    {ch.isDefault && (
+                      <span className="text-[9px] font-mono text-yellow-400/50 uppercase tracking-widest border border-yellow-400/20 px-1 rounded">
+                        осн
+                      </span>
+                    )}
                   </div>
                   {ch.description && (
                     <p className="text-xs text-gray-500 truncate mt-0.5">{ch.description}</p>
@@ -531,27 +572,25 @@ export default function ChatPage() {
           {/* Input */}
           <div className="px-4 py-3 border-t border-white/10">
             {user ? (
-              <div className="flex gap-3 items-end">
-                <div className="flex-grow relative">
-                  <textarea
-                    value={input}
-                    onChange={e => onType(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        send()
-                      }
-                    }}
-                    placeholder="Написать сообщение... (Enter — отправить, Shift+Enter — перенос)"
-                    rows={1}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-yellow-400 transition resize-none"
-                    style={{ minHeight: '44px', maxHeight: '120px' }}
-                  />
-                </div>
+              <div className="flex gap-3 items-center">
+                <textarea
+                  value={input}
+                  onChange={e => onType(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      send()
+                    }
+                  }}
+                  placeholder="Написать сообщение... (Enter — отправить, Shift+Enter — перенос)"
+                  rows={1}
+                  className="flex-grow bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-yellow-400 transition resize-none"
+                  style={{ minHeight: '44px', maxHeight: '120px' }}
+                />
                 <button
                   onClick={send}
                   disabled={!input.trim()}
-                  className="flex-shrink-0 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:cursor-not-allowed text-black font-black px-5 py-3 rounded-xl transition uppercase tracking-widest text-sm"
+                  className="flex-shrink-0 h-11 w-11 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:cursor-not-allowed text-black font-black rounded-xl transition text-lg flex items-center justify-center"
                 >
                   →
                 </button>
