@@ -12,6 +12,7 @@
     "@prisma/client": "^5.22.0",
     "colyseus.js": "^0.15.0",
     "exceljs": "^4.4.0",
+    "jose": "^5.9.6",
     "jsonwebtoken": "^9.0.2",
     "next": "16.1.6",
     "pixi-viewport": "^6.0.0",
