@@ -1,78 +1,56 @@
-"use client";
-import { useEffect, useState, Suspense } from 'react';
-import Link from 'next/link';
-import BotLogin from '../components/BotLogin';
-import ReferralHandler, { registerPendingReferral } from '../components/ReferralHandler';
+// app/courses/page.tsx
+// Путь: app/courses/page.tsx
+
+'use client'
+import { useEffect, useState, Suspense } from 'react'
+import Link from 'next/link'
+import BotLogin from '../components/BotLogin'
+import ReferralHandler, { registerPendingReferral } from '../components/ReferralHandler'
+import { useAuth } from '../hooks/useAuth'
 
 interface Course {
-  id: number;
-  title: string;
-  description: string | null;
-}
-
-interface UserData {
-  id: string;
-  name?: string;
-  photo?: string;
-  isAdmin?: boolean;
+  id:          number
+  title:       string
+  description: string | null
 }
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [user, setUser] = useState<UserData | null>(null);
+  const { user, loading, logout, setUser } = useAuth()
+  const [courses, setCourses]   = useState<Course[]>([])
+  const [coursesLoading, setCoursesLoading] = useState(false)
 
+  // Load courses whenever user becomes known and authenticated
   useEffect(() => {
-    const storedId    = localStorage.getItem('user_id');
-    const storedName  = localStorage.getItem('user_name');
-    const storedPhoto = localStorage.getItem('user_photo');
-    const storedIsAdmin = localStorage.getItem('user_is_admin') === 'true';
+    if (!user) { setCourses([]); return }
 
-    if (storedId) {
-      setUser({ id: storedId, name: storedName || undefined, photo: storedPhoto || undefined, isAdmin: storedIsAdmin });
-      fetch('/api/courses')
-        .then(res => res.json())
-        .then(data => { setCourses(data); setLoading(false); })
-        .catch(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-    setAuthChecked(true);
-  }, []);
-
-  const handleAuth = (userData: any) => {
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('user_id', userData.id);
-    if (userData.name)  localStorage.setItem('user_name',  userData.name);
-    if (userData.photo) localStorage.setItem('user_photo', userData.photo);
-    localStorage.setItem('user_is_admin', userData.isAdmin ? 'true' : 'false');
-    setUser(userData);
-
-    // Register referral if pending
-    setTimeout(registerPendingReferral, 500);
-
-    setLoading(true);
+    setCoursesLoading(true)
     fetch('/api/courses')
       .then(res => res.json())
-      .then(data => { setCourses(data); setLoading(false); });
-  };
+      .then(data => { setCourses(data); setCoursesLoading(false) })
+      .catch(() => setCoursesLoading(false))
+  }, [user])
 
-  const handleLogout = () => {
-    localStorage.clear();
-    setUser(null);
-    setCourses([]);
-  };
+  const handleAuth = (userData: any) => {
+    setUser({
+      id:      userData.id,
+      dbId:    userData.dbId ?? userData.id,
+      name:    userData.name   ?? null,
+      photo:   userData.photo  ?? null,
+      isAdmin: userData.isAdmin ?? false,
+    })
+    setTimeout(registerPendingReferral, 500)
+  }
+
+  const isLoading = loading || (!!user && coursesLoading)
 
   return (
     <div className="min-h-screen flex flex-col items-center p-8 bg-[#121212] text-white">
-      {/* Referral handler — reads ?ref= from URL */}
       <Suspense fallback={null}>
         <ReferralHandler />
       </Suspense>
 
+      {/* Header */}
       <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-16 border-b border-white/20 pb-6">
-        {/* Logo */}
         <div className="flex items-center gap-3">
           <span className="text-4xl md:text-5xl">⚛️</span>
           <h1 className="flex flex-col tracking-tighter uppercase font-sans">
@@ -85,15 +63,13 @@ export default function CoursesPage() {
           </h1>
         </div>
 
-        {/* Nav */}
         <div className="flex gap-4 items-center mt-6 md:mt-0 flex-wrap justify-center">
           <Link href="/news"
-            className="flex-shrink-0 py-3 px-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold uppercase tracking-widest rounded-lg transition-colors text-center text-sm">
+            className="flex-shrink-0 py-3 px-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold uppercase tracking-widest rounded-lg transition text-sm">
             Новости
           </Link>
-
           <Link href="/leaderboard"
-            className="flex-shrink-0 py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold uppercase tracking-widest rounded-lg transition-colors text-center text-sm">
+            className="flex-shrink-0 py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold uppercase tracking-widest rounded-lg transition text-sm">
             🏆 Рейтинг
           </Link>
 
@@ -104,35 +80,40 @@ export default function CoursesPage() {
             </Link>
           )}
 
-          {user ? (
-            <div className="flex-shrink-0 flex items-center gap-3 bg-[#1a1a1a] border border-white/20 px-4 py-2 rounded-full shadow-lg">
-              {user.photo && (
-                <img src={user.photo} alt="ava" className="w-8 h-8 rounded-full ring-2 ring-white/50" />
-              )}
-              <Link href="/profile" className="font-bold text-gray-200 hover:text-yellow-400 transition text-sm">
-                {user.name || `ID: ${user.id}`}
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider ml-1"
-              >
-                Выйти
-              </button>
-            </div>
-          ) : (
-            <div className="flex-shrink-0 h-[40px] w-auto">
-              <BotLogin onAuth={handleAuth} />
-            </div>
+          {/* Auth block */}
+          {!loading && (
+            user ? (
+              <div className="flex-shrink-0 flex items-center gap-3 bg-[#1a1a1a] border border-white/20 px-4 py-2 rounded-full shadow-lg">
+                {user.photo && (
+                  <img src={user.photo} alt="ava" className="w-8 h-8 rounded-full ring-2 ring-white/50" />
+                )}
+                <Link href="/profile"
+                  className="font-bold text-gray-200 hover:text-yellow-400 transition text-sm">
+                  {user.name || `ID: ${user.id}`}
+                </Link>
+                <button
+                  onClick={logout}
+                  className="text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider ml-1"
+                >
+                  Выйти
+                </button>
+              </div>
+            ) : (
+              <div className="flex-shrink-0 h-[40px] w-auto">
+                <BotLogin onAuth={handleAuth} />
+              </div>
+            )
           )}
         </div>
       </header>
 
+      {/* Main */}
       <main className="w-full max-w-6xl flex-grow flex flex-col">
-        {!authChecked || (loading && user) ? (
+        {isLoading ? (
           <div className="flex justify-center py-20 flex-grow items-center">
             <div className="text-center">
               <div className="inline-block w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-              <p className="text-xl text-gray-400 font-mono tracking-widest">ЗАГРУЗКА ДАННЫХ...</p>
+              <p className="text-xl text-gray-400 font-mono tracking-widest">ЗАГРУЗКА...</p>
             </div>
           </div>
         ) : !user ? (
@@ -156,10 +137,9 @@ export default function CoursesPage() {
           <>
             <div className="flex items-center gap-4 mb-10">
               <div className="h-1 bg-white flex-grow opacity-20 rounded" />
-              <h2 className="text-3xl font-bold uppercase tracking-widest text-center">Доступные Курсы</h2>
+              <h2 className="text-3xl font-bold uppercase tracking-widest text-center">Доступные курсы</h2>
               <div className="h-1 bg-white flex-grow opacity-20 rounded" />
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {courses.map(course => (
                 <div key={course.id}
@@ -170,10 +150,8 @@ export default function CoursesPage() {
                   <p className="text-gray-400 mb-8 flex-grow leading-relaxed font-mono text-sm border-l-2 border-white/10 pl-4">
                     {course.description || 'Описание отсутствует...'}
                   </p>
-                  <Link
-                    href={`/course/${course.id}`}
-                    className="mt-auto w-full text-center bg-white text-black font-extrabold uppercase tracking-widest px-6 py-4 rounded hover:bg-yellow-400 hover:text-black transition transform active:scale-95"
-                  >
+                  <Link href={`/course/${course.id}`}
+                    className="mt-auto w-full text-center bg-white text-black font-extrabold uppercase tracking-widest px-6 py-4 rounded hover:bg-yellow-400 transition transform active:scale-95">
                     Начать
                   </Link>
                 </div>
@@ -183,5 +161,5 @@ export default function CoursesPage() {
         )}
       </main>
     </div>
-  );
+  )
 }
