@@ -51,8 +51,20 @@ export default function CoursesPage() {
     setCoursesLoading(true)
     fetch(`/api/courses?userId=${user.id}`)
       .then(r => r.json())
-      .then(data => { setAllCourses(data); setCoursesLoading(false) })
-      .catch(() => setCoursesLoading(false))
+      .then(data => {
+        // Guard: API must return array
+        if (Array.isArray(data)) {
+          setAllCourses(data)
+        } else {
+          console.error('[courses] API returned non-array:', data)
+          setAllCourses([])
+        }
+        setCoursesLoading(false)
+      })
+      .catch(err => {
+        console.error('[courses] fetch error:', err)
+        setCoursesLoading(false)
+      })
   }, [user])
 
   const handleApply = async (courseId: number) => {
@@ -77,9 +89,9 @@ export default function CoursesPage() {
     }
   }
 
-  const mineCourses = allCourses.filter(c => c.enrollmentStatus === 'active')
-  const selfCourses = allCourses.filter(c => c.courseType === 'self')
-  const groupCourses = allCourses.filter(c => c.courseType === 'group')
+  const mineCourses = Array.isArray(allCourses) ? allCourses.filter(c => c.enrollmentStatus === 'active') : []
+  const selfCourses = Array.isArray(allCourses) ? allCourses.filter(c => c.courseType === 'self') : []
+  const groupCourses = Array.isArray(allCourses) ? allCourses.filter(c => c.courseType === 'group') : []
 
   const visibleCourses: Course[] =
     tab === 'mine' ? mineCourses :
