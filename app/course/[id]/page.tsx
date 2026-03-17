@@ -1,68 +1,63 @@
-// app/course/[id]/page.tsx
-// Путь: app/course/[id]/page.tsx
+'use client'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useAuth } from '@/app/hooks/useAuth'
 
-"use client";
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useAuth } from '@/app/hooks/useAuth';
-
-interface Attempt {
-  percent: number;
-}
+interface Attempt { percent: number }
 
 interface Lesson {
-  id:       number;
-  title:    string;
-  attempts?: Attempt[];
+  id: number
+  title: string
+  homeworkOpen?: boolean
+  attempts?: Attempt[]
 }
 
 interface Task {
-  id:      number;
-  title:   string;
-  lessons: Lesson[];
+  id: number
+  title: string
+  lessons: Lesson[]
 }
 
 interface CourseDetail {
-  id:          number;
-  title:       string;
-  description: string;
-  tasks:       Task[];
+  id: number
+  title: string
+  description: string
+  courseType: string
+  tasks: Task[]
 }
 
 export default function CoursePage() {
-  const { id } = useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { id } = useParams()
+  const { user, loading: authLoading } = useAuth()
 
-  const [course, setCourse]       = useState<CourseDetail | null>(null);
-  const [courseLoading, setCourseLoading] = useState(true);
-  const [notFound, setNotFound]   = useState(false);
+  const [course, setCourse] = useState<CourseDetail | null>(null)
+  const [courseLoading, setCourseLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    if (!id) return;
-    // Start loading once auth check is done
-    if (authLoading) return;
+    if (!id || authLoading) return
 
-    const query = user ? `?userId=${user.id}` : '';
+    const query = user ? `?userId=${user.id}` : ''
 
     fetch(`/api/courses/${id}${query}`)
       .then(res => {
-        if (!res.ok) { setNotFound(true); setCourseLoading(false); return null; }
-        return res.json();
+        if (!res.ok) { setNotFound(true); setCourseLoading(false); return null }
+        return res.json()
       })
       .then(data => {
-        if (data) setCourse(data);
-        setCourseLoading(false);
+        if (data) setCourse(data)
+        setCourseLoading(false)
       })
-      .catch(() => { setNotFound(true); setCourseLoading(false); });
-  }, [id, user, authLoading]);
+      .catch(() => { setNotFound(true); setCourseLoading(false) })
+  }, [id, user, authLoading])
 
   if (authLoading || courseLoading) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center text-white font-mono animate-pulse">
         ... ЗАГРУЗКА ДАННЫХ ...
       </div>
-    );
+    )
   }
 
   if (notFound || !course) {
@@ -70,14 +65,16 @@ export default function CoursePage() {
       <div className="min-h-screen bg-[#121212] flex items-center justify-center text-red-400 font-bold uppercase tracking-widest">
         Курс не найден
       </div>
-    );
+    )
   }
+
+  const isGroup = course.courseType === 'group'
 
   return (
     <div className="min-h-screen bg-[#121212] text-white p-6 md:p-12 font-sans">
       <div className="max-w-5xl mx-auto">
         <Link
-          href="/"
+          href="/courses"
           className="inline-block mb-8 text-sm font-bold uppercase tracking-widest text-gray-500 hover:text-white transition border-b border-transparent hover:border-white pb-1"
         >
           ← Назад к списку
@@ -90,6 +87,15 @@ export default function CoursePage() {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
+          <div className="flex items-center gap-3 mb-4">
+            <span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
+              isGroup
+                ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+            }`}>
+              {isGroup ? '👨‍🏫 Очный курс' : '🖥️ Заочный курс'}
+            </span>
+          </div>
           <h1 className="text-4xl md:text-5xl font-extrabold uppercase tracking-tight mb-4">
             {course.title}
           </h1>
@@ -101,6 +107,11 @@ export default function CoursePage() {
         <div className="flex items-center gap-4 mb-8">
           <h2 className="text-2xl font-bold uppercase tracking-widest">Программа</h2>
           <div className="h-px bg-white/20 flex-grow" />
+          {isGroup && (
+            <span className="text-xs font-mono text-gray-500">
+              🔒 — ожидает разбора преподавателя
+            </span>
+          )}
         </div>
 
         {/* Tasks */}
@@ -124,11 +135,31 @@ export default function CoursePage() {
 
               <div className="bg-[#1a1a1a] border border-white/10 rounded-lg overflow-hidden">
                 {task.lessons.map(lesson => {
-                  const isCompleted  = lesson.attempts && lesson.attempts.length > 0;
-                  const bestResult   = isCompleted
-                    ? Math.max(...lesson.attempts!.map(a => a.percent))
-                    : 0;
-                  const isPerfect    = bestResult === 100;
+                  const isCompleted  = lesson.attempts && lesson.attempts.length > 0
+                  const bestResult   = isCompleted ? Math.max(...lesson.attempts!.map(a => a.percent)) : 0
+                  const isPerfect    = bestResult === 100
+                  const isLocked     = isGroup && lesson.homeworkOpen === false
+
+                  if (isLocked) {
+                    return (
+                      <div
+                        key={lesson.id}
+                        className="flex justify-between items-center px-6 py-5 border-b border-white/5 last:border-0"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-6 h-6 flex items-center justify-center rounded-full border border-white/10 text-xs opacity-50">
+                            🔒
+                          </div>
+                          <span className="font-medium font-mono text-lg text-gray-600">
+                            {lesson.title}
+                          </span>
+                        </div>
+                        <span className="text-xs font-mono text-gray-600 bg-white/5 px-3 py-1.5 rounded border border-white/5 hidden md:block">
+                          Откроется после занятия
+                        </span>
+                      </div>
+                    )
+                  }
 
                   return (
                     <Link
@@ -137,7 +168,6 @@ export default function CoursePage() {
                       className="flex justify-between items-center px-6 py-5 border-b border-white/5 last:border-0 hover:bg-white hover:text-black transition duration-200 group/lesson"
                     >
                       <div className="flex items-center gap-4">
-                        {/* Completion indicator */}
                         <div className={`w-6 h-6 flex items-center justify-center rounded-full border ${
                           isCompleted
                             ? isPerfect
@@ -169,7 +199,7 @@ export default function CoursePage() {
                         </span>
                       </div>
                     </Link>
-                  );
+                  )
                 })}
 
                 {task.lessons.length === 0 && (
@@ -183,5 +213,5 @@ export default function CoursePage() {
         </div>
       </div>
     </div>
-  );
+  )
 }
