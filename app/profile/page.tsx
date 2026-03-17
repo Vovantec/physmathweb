@@ -4,6 +4,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useAuth } from '@/app/hooks/useAuth'
 
 const NotificationSettings = dynamic(
   () => import('@/app/components/NotificationSettings'),
@@ -11,10 +12,10 @@ const NotificationSettings = dynamic(
 )
 
 interface ReferralData {
-  code: string
-  referrals: Array<{
+  code:           string
+  referrals:      Array<{
     createdAt: string
-    referred: {
+    referred:  {
       firstName: string | null
       username:  string | null
       photoUrl:  string | null
@@ -26,26 +27,19 @@ interface ReferralData {
 }
 
 export default function ProfilePage() {
-  const [user, setUser]         = useState<any>(null)
-  const [referral, setReferral] = useState<ReferralData | null>(null)
-  const [copied, setCopied]     = useState(false)
-  const [loading, setLoading]   = useState(true)
+  const { user, loading, logout } = useAuth()
+  const [referral, setReferral]   = useState<ReferralData | null>(null)
+  const [refLoading, setRefLoading] = useState(true)
+  const [copied, setCopied]       = useState(false)
 
   useEffect(() => {
-    const id      = localStorage.getItem('user_id')
-    const name    = localStorage.getItem('user_name')
-    const photo   = localStorage.getItem('user_photo')
-    const isAdmin = localStorage.getItem('user_is_admin') === 'true'
+    if (!user) { setRefLoading(false); return }
 
-    if (!id) { setLoading(false); return }
-
-    setUser({ id, name, photo, isAdmin })
-
-    fetch(`/api/referral?userId=${id}`)
+    fetch(`/api/referral?userId=${user.id}`)
       .then(r => r.json())
-      .then(d => { setReferral(d); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+      .then(d => { setReferral(d); setRefLoading(false) })
+      .catch(() => setRefLoading(false))
+  }, [user])
 
   const refUrl = referral
     ? `${typeof window !== 'undefined' ? window.location.origin : 'https://physmathlab.ru'}?ref=${referral.code}`
@@ -59,17 +53,21 @@ export default function ProfilePage() {
 
   const handleShare = () => {
     if (navigator.share) {
-      navigator.share({
-        title: 'ФизМат by Шевелев',
-        text:  'Присоединяйся к курсам подготовки к ЕГЭ!',
-        url:   refUrl,
-      })
+      navigator.share({ title: 'ФизМат by Шевелев', text: 'Присоединяйся!', url: refUrl })
     } else {
       handleCopy()
     }
   }
 
-  if (!user && !loading) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#121212] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center text-white">
         <div className="text-center">
@@ -92,32 +90,38 @@ export default function ProfilePage() {
         </Link>
 
         {/* Profile card */}
-        {user && (
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-8 flex items-center gap-6">
-            {user.photo ? (
-              <img src={user.photo} alt="avatar"
-                className="w-20 h-20 rounded-2xl border-2 border-white/20 flex-shrink-0" />
-            ) : (
-              <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center text-3xl flex-shrink-0">
-                👤
-              </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-extrabold uppercase tracking-tight">
-                {user.name ?? `ID: ${user.id}`}
-              </h1>
-              <p className="text-gray-500 font-mono text-sm mt-1">Telegram ID: {user.id}</p>
+        <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-8 flex items-center gap-6">
+          {user.photo ? (
+            <img src={user.photo} alt="avatar"
+              className="w-20 h-20 rounded-2xl border-2 border-white/20 flex-shrink-0" />
+          ) : (
+            <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center text-3xl flex-shrink-0">
+              👤
+            </div>
+          )}
+          <div className="flex-grow">
+            <h1 className="text-2xl font-extrabold uppercase tracking-tight">
+              {user.name ?? `ID: ${user.id}`}
+            </h1>
+            <p className="text-gray-500 font-mono text-sm mt-1">Telegram ID: {user.id}</p>
+            <div className="flex items-center gap-3 mt-3 flex-wrap">
               {user.isAdmin && (
-                <span className="mt-2 inline-block text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded font-mono uppercase tracking-widest">
+                <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded font-mono uppercase tracking-widest">
                   Администратор
                 </span>
               )}
+              <button
+                onClick={logout}
+                className="text-xs text-gray-500 hover:text-red-400 border border-white/10 hover:border-red-500/30 px-3 py-1 rounded font-mono uppercase tracking-widest transition"
+              >
+                Выйти
+              </button>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Referral stats */}
-        {loading ? (
+        {refLoading ? (
           <div className="animate-pulse h-24 bg-white/5 rounded-2xl" />
         ) : referral && (
           <>
@@ -141,7 +145,7 @@ export default function ProfilePage() {
               </Link>
             </div>
 
-            {/* Referral link card */}
+            {/* Referral link */}
             <div className="bg-gradient-to-br from-yellow-400/10 via-transparent to-transparent border border-yellow-400/20 rounded-2xl p-8">
               <h2 className="text-xl font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
                 🔗 Ваша реферальная ссылка
@@ -211,9 +215,7 @@ export default function ProfilePage() {
         )}
 
         {/* Notification settings */}
-        {user && (
-          <NotificationSettings userId={user.id} />
-        )}
+        <NotificationSettings userId={user.id} />
 
       </div>
     </div>

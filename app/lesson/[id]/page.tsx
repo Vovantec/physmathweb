@@ -1,158 +1,163 @@
+// app/lesson/[id]/page.tsx
+// Путь: app/lesson/[id]/page.tsx
+
 "use client";
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useAuth } from '@/app/hooks/useAuth';
 import { calcDeadline, getDeadlineStatus, type DeadlinePolicy } from '@/lib/deadline';
 
-const DeadlineBanner = dynamic(() => import('@/app/components/DeadlineBanner'), { ssr: false });
+const DeadlineBanner = dynamic(
+  () => import('@/app/components/DeadlineBanner'),
+  { ssr: false }
+);
 
 interface Question {
-  id: number;
-  type: string;
-  content: string | null;
+  id:       number;
+  type:     string;
+  content:  string | null;
   videoUrl?: string | null;
   imageUrl?: string | null;
 }
 
 interface Attempt {
-  id: number;
-  percent: number;
-  correct: number;
-  total: number;
-  answers?: string;
-  isLate?: boolean;
+  id:        number;
+  percent:   number;
+  correct:   number;
+  total:     number;
+  answers?:  string;
+  isLate?:   boolean;
   createdAt: string;
 }
 
 interface LessonData {
-  id: number;
-  title: string;
-  videoUrl: string | null;
-  pdfId: string | null;
+  id:                 number;
+  title:              string;
+  videoUrl:           string | null;
+  pdfId:              string | null;
   deadlineOffsetDays: number | null;
   isFreeForReferrals: boolean;
   task: {
     courseId: number;
     course: {
-      id: number;
-      deadlinePolicy: string;
+      id:                number;
+      deadlinePolicy:    string;
       penaltyMultiplier: number;
     };
   };
   questions: Question[];
-  attempts: Attempt[];
+  attempts:  Attempt[];
 }
 
 interface DeadlineInfo {
-  deadline: Date | null;
-  isLate: boolean;
-  isBlocked: boolean;
+  deadline:          Date | null;
+  isLate:            boolean;
+  isBlocked:         boolean;
   penaltyMultiplier: number;
 }
 
 export default function LessonPage() {
-  const { id } = useParams();
-  const [lesson, setLesson] = useState<LessonData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [user, setUser] = useState<{ id: string } | null>(null);
-  const [deadlineInfo, setDeadlineInfo] = useState<DeadlineInfo | null>(null);
+  const { id }   = useParams();
+  const router   = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  const [lesson, setLesson]               = useState<LessonData | null>(null);
+  const [lessonLoading, setLessonLoading] = useState(true);
+  const [answers, setAnswers]             = useState<Record<number, string>>({});
+  const [submitting, setSubmitting]       = useState(false);
+  const [result, setResult]               = useState<any>(null);
+  const [deadlineInfo, setDeadlineInfo]   = useState<DeadlineInfo | null>(null);
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
 
   useEffect(() => {
-    const storedId = localStorage.getItem('user_id');
-    if (storedId) setUser({ id: storedId });
+    if (!id || authLoading) return;
 
-    if (id && storedId) {
-      // 1. Load lesson
-      fetch(`/api/lessons/${id}?userId=${storedId}`)
-        .then(r => r.json())
-        .then(async (data: LessonData) => {
-          setLesson(data);
+    // Redirect to home if not authenticated
+    if (!user) {
+      router.replace('/');
+      return;
+    }
 
-          // 2. Auto-enroll if not enrolled (triggers enrolledAt)
-          const enrollRes = await fetch(`/api/courses/${data.task.courseId}/enroll`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: storedId }),
+    fetch(`/api/lessons/${id}?userId=${user.id}`)
+      .then(r => r.json())
+      .then(async (data: LessonData) => {
+        setLesson(data);
+
+        // Auto-enroll in course
+        const enrollRes = await fetch(`/api/courses/${data.task.courseId}/enroll`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ userId: user.id }),
+        });
+        const enrollData = await enrollRes.json();
+
+        // Calculate personal deadline
+        if (enrollData.enrolledAt && data.deadlineOffsetDays != null) {
+          const status = getDeadlineStatus(
+            new Date(enrollData.enrolledAt),
+            data.deadlineOffsetDays,
+            data.task.course.deadlinePolicy as DeadlinePolicy,
+            data.task.course.penaltyMultiplier
+          );
+          setDeadlineInfo({
+            deadline:          status.deadline,
+            isLate:            status.isLate,
+            isBlocked:         status.isBlocked,
+            penaltyMultiplier: status.penaltyMultiplier,
           });
-          const enrollData = await enrollRes.json();
+        }
 
-          // 3. Calculate personal deadline
-          if (enrollData.enrolledAt && data.deadlineOffsetDays != null) {
-            const status = getDeadlineStatus(
-              new Date(enrollData.enrolledAt),
-              data.deadlineOffsetDays,
-              data.task.course.deadlinePolicy as DeadlinePolicy,
-              data.task.course.penaltyMultiplier
-            );
-            setDeadlineInfo({
-              deadline: status.deadline,
-              isLate: status.isLate,
-              isBlocked: status.isBlocked,
-              penaltyMultiplier: status.penaltyMultiplier,
+        // Restore previous attempt state
+        if (data.attempts && data.attempts.length > 0) {
+          const best = data.attempts.reduce((prev, cur) =>
+            prev.percent > cur.percent ? prev : cur
+          );
+          const isPerfect    = best.percent === 100;
+          const isExhausted  = data.attempts.length >= 2;
+          if (isPerfect || isExhausted) {
+            setResult({
+              percent:      best.percent,
+              correct:      best.correct,
+              total:        best.total,
+              pointsGained: 0,
+              bonusGained:  false,
+              isLate:       best.isLate ?? false,
+              isHistory:    true,
             });
           }
+        }
 
-          // 4. Restore previous attempt state
-          if (data.attempts && data.attempts.length > 0) {
-            const bestAttempt = data.attempts.reduce((prev, current) =>
-              prev.percent > current.percent ? prev : current
-            );
-            const isPerfect = bestAttempt.percent === 100;
-            const isExhausted = data.attempts.length >= 2;
-            if (isPerfect || isExhausted) {
-              setResult({
-                percent: bestAttempt.percent,
-                correct: bestAttempt.correct,
-                total: bestAttempt.total,
-                pointsGained: 0,
-                bonusGained: false,
-                isLate: bestAttempt.isLate ?? false,
-                isHistory: true,
-              });
-            }
-          }
-
-          setLoading(false);
-        });
-    }
-  }, [id]);
+        setLessonLoading(false);
+      })
+      .catch(() => setLessonLoading(false));
+  }, [id, user, authLoading, router]);
 
   const handleSubmit = async () => {
     if (!lesson || !user) return;
     setSubmitting(true);
     try {
       const res = await fetch(`/api/lessons/${lesson.id}/submit`, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, answers }),
+        body:    JSON.stringify({ userId: user.id, answers }),
       });
       const data = await res.json();
       if (data.success) {
         setResult(data.results);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        setLesson(prev =>
-          prev
-            ? {
-                ...prev,
-                attempts: [
-                  ...prev.attempts,
-                  {
-                    id: Date.now(),
-                    percent: data.results.percent,
-                    correct: data.results.correct,
-                    total: data.results.total,
-                    isLate: data.results.isLate,
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              }
-            : null
-        );
+        setLesson(prev => prev ? {
+          ...prev,
+          attempts: [...prev.attempts, {
+            id:        Date.now(),
+            percent:   data.results.percent,
+            correct:   data.results.correct,
+            total:     data.results.total,
+            isLate:    data.results.isLate,
+            createdAt: new Date().toISOString(),
+          }],
+        } : null);
       } else {
         alert(data.error || 'Ошибка отправки');
       }
@@ -163,7 +168,8 @@ export default function LessonPage() {
     }
   };
 
-  if (loading) {
+  // Show spinner while auth check or lesson loading
+  if (authLoading || lessonLoading) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center text-white font-mono animate-pulse">
         ... ЗАГРУЗКА УРОКА ...
@@ -172,15 +178,17 @@ export default function LessonPage() {
   }
 
   if (!lesson) {
-    return <div className="p-12 text-white">Урок не найден или вы не авторизованы.</div>;
+    return (
+      <div className="p-12 text-white">Урок не найден или вы не авторизованы.</div>
+    );
   }
 
-  const courseId = lesson.task?.courseId;
+  const courseId      = lesson.task?.courseId;
   const attemptsCount = lesson.attempts?.length || 0;
-  const maxAttempts = 2;
-  const bestPercent = lesson.attempts?.reduce((max, a) => Math.max(max, a.percent), 0) || 0;
-  const canSolve = attemptsCount < maxAttempts && bestPercent < 100 && !deadlineInfo?.isBlocked;
-  const showVideos = attemptsCount >= maxAttempts || bestPercent === 100;
+  const maxAttempts   = 2;
+  const bestPercent   = lesson.attempts?.reduce((max, a) => Math.max(max, a.percent), 0) || 0;
+  const canSolve      = attemptsCount < maxAttempts && bestPercent < 100 && !deadlineInfo?.isBlocked;
+  const showVideos    = attemptsCount >= maxAttempts || bestPercent === 100;
 
   return (
     <div className="min-h-screen bg-[#121212] text-white p-6 md:p-12 font-sans">
@@ -197,7 +205,7 @@ export default function LessonPage() {
           {lesson.title}
         </h1>
 
-        {/* ── DEADLINE BANNER ── */}
+        {/* Deadline banner */}
         {deadlineInfo && (
           <DeadlineBanner
             deadline={deadlineInfo.deadline?.toISOString() ?? null}
@@ -208,25 +216,19 @@ export default function LessonPage() {
           />
         )}
 
-        {/* ── RESULT ── */}
+        {/* Result block */}
         {result && (
-          <div
-            className={`mb-10 border p-6 rounded-xl shadow-xl ${
-              result.percent === 100
-                ? 'bg-green-900/30 border-green-500/50'
-                : 'bg-blue-900/30 border-blue-500/50'
-            }`}
-          >
+          <div className={`mb-10 border p-6 rounded-xl shadow-xl ${
+            result.percent === 100
+              ? 'bg-green-900/30 border-green-500/50'
+              : 'bg-blue-900/30 border-blue-500/50'
+          }`}>
             <div className="flex justify-between items-start md:items-center flex-col md:flex-row gap-4">
               <div>
-                <h3
-                  className={`text-2xl font-bold mb-2 ${
-                    result.percent === 100 ? 'text-green-400' : 'text-blue-400'
-                  }`}
-                >
-                  {result.percent === 100
-                    ? '✅ Задание выполнено!'
-                    : `🏁 Результат: ${result.percent}%`}
+                <h3 className={`text-2xl font-bold mb-2 ${
+                  result.percent === 100 ? 'text-green-400' : 'text-blue-400'
+                }`}>
+                  {result.percent === 100 ? '✅ Задание выполнено!' : `🏁 Результат: ${result.percent}%`}
                 </h3>
                 <p className="text-lg text-gray-300 font-mono">
                   Правильно: {result.correct} из {result.total}
@@ -252,7 +254,7 @@ export default function LessonPage() {
                   !deadlineInfo?.isBlocked && (
                     <button
                       onClick={() => { setResult(null); setAnswers({}); }}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold font-mono text-sm px-5 py-2.5 rounded transition border border-blue-500/50 shadow-lg flex items-center gap-2"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold font-mono text-sm px-5 py-2.5 rounded transition border border-blue-500/50 shadow-lg"
                     >
                       Попробовать еще раз ↻
                     </button>
@@ -264,22 +266,20 @@ export default function LessonPage() {
               <div className="mt-4 inline-block bg-yellow-500/20 text-yellow-300 px-4 py-2 rounded-lg font-bold border border-yellow-500/30">
                 🎉 Начислено баллов: +{result.pointsGained}
                 {result.bonusGained && (
-                  <span className="block text-xs font-normal opacity-80">
-                    (включая бонус за идеал!)
-                  </span>
+                  <span className="block text-xs font-normal opacity-80">(включая бонус за идеал!)</span>
                 )}
               </div>
             )}
           </div>
         )}
 
-        {/* ── VIDEO BREAKDOWNS ── */}
-        {showVideos && lesson.questions && lesson.questions.length > 0 && (
+        {/* Video breakdowns */}
+        {showVideos && lesson.questions.length > 0 && (
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 md:p-8 mb-10 relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
             <div className="flex items-center gap-3 mb-6">
               <span className="text-2xl">📺</span>
-              <h3 className="text-xl font-bold uppercase tracking-widest text-white">Разбор задач</h3>
+              <h3 className="text-xl font-bold uppercase tracking-widest">Разбор задач</h3>
             </div>
             <div className="flex overflow-x-auto gap-3 pb-4 mb-4">
               {lesson.questions.map((q, idx) => (
@@ -313,7 +313,7 @@ export default function LessonPage() {
           </div>
         )}
 
-        {/* ── VIDEO LECTURE ── */}
+        {/* Video lecture */}
         {lesson.videoUrl && (
           <div className="relative aspect-video bg-black border-2 border-white/20 rounded-xl mb-8 flex items-center justify-center overflow-hidden shadow-2xl">
             <iframe
@@ -325,13 +325,14 @@ export default function LessonPage() {
           </div>
         )}
 
-        {/* ── PDF ── */}
+        {/* PDF */}
         {lesson.pdfId && (
           <div className="bg-[#1a1a1a] border border-white/10 p-6 rounded-xl mb-8 flex items-center justify-between group hover:border-blue-500/50 transition">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div>
@@ -346,9 +347,10 @@ export default function LessonPage() {
           </div>
         )}
 
-        {/* ── HOMEWORK ── */}
+        {/* Homework */}
         <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-yellow-400" />
+
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-white/10 gap-4">
             <div>
               <h2 className="text-2xl font-bold uppercase tracking-widest flex items-center gap-3">
@@ -360,14 +362,11 @@ export default function LessonPage() {
             </div>
             <div className="flex gap-2">
               {lesson.attempts?.map((att, idx) => (
-                <div
-                  key={idx}
-                  className={`px-3 py-1 rounded border text-xs font-bold ${
-                    att.percent === 100
-                      ? 'bg-green-500/20 border-green-500 text-green-400'
-                      : 'bg-red-500/20 border-red-500 text-red-400'
-                  }`}
-                >
+                <div key={idx} className={`px-3 py-1 rounded border text-xs font-bold ${
+                  att.percent === 100
+                    ? 'bg-green-500/20 border-green-500 text-green-400'
+                    : 'bg-red-500/20 border-red-500 text-red-400'
+                }`}>
                   #{idx + 1}: {att.percent}%
                   {att.isLate && <span className="ml-1 opacity-60">⏰</span>}
                 </div>
@@ -398,7 +397,9 @@ export default function LessonPage() {
                       {idx + 1}
                     </span>
                     <div className="mb-4">
-                      <p className="font-medium text-lg text-gray-200">{q.content || `Вопрос №${idx + 1}`}</p>
+                      <p className="font-medium text-lg text-gray-200">
+                        {q.content || `Вопрос №${idx + 1}`}
+                      </p>
                       {q.imageUrl && (
                         <div className="mt-4 mb-2">
                           <img
