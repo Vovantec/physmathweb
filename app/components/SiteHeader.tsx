@@ -81,27 +81,33 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
         {/* Auth block */}
         {!loading && (
           user ? (
-            <div className="flex-shrink-0 flex items-center gap-2 bg-[#1a1a1a] border border-white/20 pl-1 pr-3 py-1 rounded-full shadow-lg">
-              {user.photo && (
-                <img src={user.photo} alt="ava"
-                  className="w-8 h-8 rounded-full ring-2 ring-white/30 flex-shrink-0" />
-              )}
-
-              {/* Кликабельное имя — ведёт на /profile */}
+            <div className="flex-shrink-0 flex items-center gap-3">
+              {/* Кликабельный профиль */}
               <Link
                 href="/profile"
-                className="font-bold text-sm text-gray-200 hover:text-yellow-400 transition underline decoration-dotted underline-offset-2 decoration-white/30 hover:decoration-yellow-400 px-1"
+                className="flex items-center gap-2.5 bg-[#1a1a1a] border border-white/15 hover:border-yellow-400/50 px-3 py-2 rounded-xl transition group"
                 title="Открыть профиль"
               >
-                {user.name ?? `ID: ${user.id}`}
+                {user.photo ? (
+                  <img src={user.photo} alt="ava"
+                    className="w-7 h-7 rounded-full ring-1 ring-white/20 flex-shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0">
+                    👤
+                  </div>
+                )}
+                <span className="font-bold text-sm text-gray-300 group-hover:text-yellow-400 transition max-w-[120px] truncate">
+                  {user.name ?? `ID: ${user.id}`}
+                </span>
               </Link>
 
+              {/* Отдельная кнопка выхода */}
               <button
                 onClick={logout}
-                className="text-xs text-gray-600 hover:text-red-400 transition ml-1"
+                className="text-xs text-gray-500 hover:text-red-400 border border-white/10 hover:border-red-500/30 px-3 py-2 rounded-xl transition font-mono uppercase tracking-widest"
                 title="Выйти"
               >
-                ✕
+                Выйти
               </button>
             </div>
           ) : (
