@@ -1,15 +1,19 @@
-import Link from 'next/link';
-import React from 'react';
+// app/admin/layout.tsx
+// Путь: app/admin/layout.tsx
+import Link from 'next/link'
+import React from 'react'
 
 const NAV_ITEMS = [
-  { href: '/admin',               icon: '📊', label: 'Сводка' },
-  { href: '/admin/news',          icon: '📢', label: 'Новости' },
-  { href: '/admin/courses',       icon: '📚', label: 'Курсы' },
-  { href: '/admin/deadlines',     icon: '⏰', label: 'Дедлайны и доступ' },
-  { href: '/admin/heatmap',       icon: '🌡️', label: 'Тепловая карта' },
+  { href: '/admin',               icon: '📊', label: 'Сводка'                },
+  { href: '/admin/news',          icon: '📢', label: 'Новости'               },
+  { href: '/admin/courses',       icon: '📚', label: 'Курсы'                 },
+  { href: '/admin/deadlines',     icon: '⏰', label: 'Дедлайны и доступ'     },
+  { href: '/admin/heatmap',       icon: '🌡️', label: 'Тепловая карта'        },
   { href: '/admin/parent-access', icon: '👨‍👩‍👧', label: 'Доступ для родителей' },
-  { href: '/admin/students',      icon: '👥', label: 'База студентов' },
-];
+  { href: '/admin/prizes',        icon: '🎁', label: 'Призы'                 },
+  { href: '/admin/prizes/pools',  icon: '🏆', label: 'Розыгрыши'             },
+  { href: '/admin/students',      icon: '👥', label: 'База студентов'         },
+]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -24,7 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <p className="text-xs text-gray-500 font-mono mt-2 tracking-wider">ПАНЕЛЬ УПРАВЛЕНИЯ</p>
         </div>
 
-        <nav className="flex flex-col gap-1 flex-grow p-4">
+        <nav className="flex flex-col gap-1 flex-grow p-4 overflow-y-auto">
           {NAV_ITEMS.map(item => (
             <Link
               key={item.href}
@@ -36,10 +40,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
 
           <div className="mt-auto pt-4 border-t border-white/5">
-            <Link
-              href="/"
-              className="px-4 py-3 w-full block text-center rounded-lg border border-dashed border-white/20 hover:border-yellow-400 text-gray-400 hover:text-yellow-400 transition font-mono text-sm uppercase tracking-widest"
-            >
+            <Link href="/"
+              className="px-4 py-3 w-full block text-center rounded-lg border border-dashed border-white/20 hover:border-yellow-400 text-gray-400 hover:text-yellow-400 transition font-mono text-sm uppercase tracking-widest">
               ← На сайт
             </Link>
           </div>
@@ -49,12 +51,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main content */}
       <main className="flex-grow h-screen overflow-y-auto relative">
         <div className="absolute inset-0 opacity-5 pointer-events-none"
-             style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '40px 40px' }}>
-        </div>
+          style={{ backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)', backgroundSize: '40px 40px' }}
+        />
         <div className="relative z-10 p-6 md:p-12 max-w-7xl mx-auto">
           {children}
         </div>
       </main>
     </div>
-  );
+  )
 }

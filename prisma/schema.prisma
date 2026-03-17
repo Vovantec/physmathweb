@@ -30,6 +30,8 @@ model User {
   referredBy      Referral?         @relation("ReferredRelation")
   referrals       Referral[]        @relation("ReferrerRelation")
   parentAccess    ParentAccess[]
+  notificationSettings  NotificationSettings?
+  prizeAwards           PrizeAward[]
 }
 
 model Course {
@@ -262,4 +264,77 @@ model Alliance {
   tag       String   @unique
   members   User[]
   createdAt DateTime @default(now())
+}
+
+model NotificationSettings {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
+  deadlineReminder Boolean  @default(true)
+  newLesson        Boolean  @default(true)
+  newNews          Boolean  @default(true)
+  ratingChange     Boolean  @default(true)
+  prizeAwarded     Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationLog {
+  id      Int      @id @default(autoincrement())
+  userId  Int
+  type    String
+  refId   String?
+  sentAt  DateTime @default(now())
+
+  @@index([userId, type, refId])
+}
+
+model Prize {
+  id          Int              @id @default(autoincrement())
+  title       String
+  description String?
+  imageUrl    String?
+  createdAt   DateTime         @default(now())
+  placements  PrizePlacement[]
+}
+
+model PrizePool {
+  id          String           @id @default(uuid())
+  name        String
+  ratingType  String           @default("points")  // "points" | "referrals"
+  startDate   DateTime
+  endDate     DateTime
+  placesCount Int              @default(3)
+  isActive    Boolean          @default(true)
+  isFinished  Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  placements  PrizePlacement[]
+  awards      PrizeAward[]
+}
+
+model PrizePlacement {
+  id      Int       @id @default(autoincrement())
+  poolId  String
+  place   Int
+  prizeId Int
+  pool    PrizePool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  prize   Prize     @relation(fields: [prizeId], references: [id])
+
+  @@unique([poolId, place])
+}
+
+model PrizeAward {
+  id        String    @id @default(uuid())
+  poolId    String
+  place     Int
+  winnerId  Int
+  status    String    @default("pending")  // "pending" | "awarded"
+  awardedAt DateTime?
+  photoUrl  String?
+  comment   String?
+  createdAt DateTime  @default(now())
+  pool      PrizePool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  winner    User      @relation(fields: [winnerId], references: [id])
+
+  @@unique([poolId, place])
 }
