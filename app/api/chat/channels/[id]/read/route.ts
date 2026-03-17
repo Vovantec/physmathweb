@@ -6,12 +6,15 @@ import { getUserFromRequest } from '@/lib/auth'
 // POST /api/chat/channels/[id]/read  { lastReadMsgId: number }
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getUserFromRequest(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const channelId = Number(params.id)
+  const { id } = await params
+  const channelId = Number(id)
+  if (isNaN(channelId)) return NextResponse.json({ error: 'Invalid channel id' }, { status: 400 })
+
   const { lastReadMsgId } = await req.json()
 
   await prisma.chatReadPointer.upsert({

@@ -172,25 +172,25 @@ export default function ChatPage() {
         setHasMore(data.length === 50)
         setMsgLoading(false)
         setTimeout(() => bottomRef.current?.scrollIntoView(), 50)
+        // Mark as read using already loaded messages
+        markRead(activeId, data)
       })
       .catch(() => setMsgLoading(false))
-
-    // Mark as read
-    markRead(activeId)
 
     // Reset unread in sidebar
     setChannels(prev => prev.map(ch => ch.id === activeId ? { ...ch, unread: 0 } : ch))
   }, [activeId])
 
-  const markRead = async (channelId: number) => {
-    // Get latest msg id
-    const msgs = await fetch(`/api/chat/channels/${channelId}/messages?limit=1`)
+  const markRead = async (channelId: number, msgs?: ChatMsg[]) => {
+    // Use provided messages or fetch the latest one
+    const list = msgs ?? await fetch(`/api/chat/channels/${channelId}/messages?limit=50`)
       .then(r => r.json()).catch(() => [])
-    if (msgs.length > 0) {
+    if (list.length > 0) {
+      const lastId = list[list.length - 1].id
       await fetch(`/api/chat/channels/${channelId}/read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lastReadMsgId: msgs[msgs.length - 1].id })
+        body: JSON.stringify({ lastReadMsgId: lastId })
       })
     }
   }
