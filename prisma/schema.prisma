@@ -8,29 +8,48 @@ datasource db {
 }
 
 model User {
-  id         Int      @id @default(autoincrement()) 
-  telegramId BigInt   @unique
-  username   String?
-  firstName  String?
-  photoUrl   String?
-  points     Int      @default(0)
-  isAdmin    Boolean  @default(false)
-  gameData   String?  @default("{}")
-  attempts   HomeworkAttempt[]
-  characters Character[]
-  newsPosts  NewsPost[] @relation("AuthoredNews")
-  comments   Comment[]  @relation("UserComments")
-  likes      Like[]     @relation("UserLikes")
-  base          Base?
-  allianceId    String?
-  alliance      Alliance? @relation(fields: [allianceId], references: [id])
+  id              Int      @id @default(autoincrement())
+  telegramId      BigInt   @unique
+  username        String?
+  firstName       String?
+  photoUrl        String?
+  points          Int      @default(0)
+  referralPoints  Int      @default(0)
+  isAdmin         Boolean  @default(false)
+  gameData        String?  @default("{}")
+  attempts        HomeworkAttempt[]
+  characters      Character[]
+  newsPosts       NewsPost[]        @relation("AuthoredNews")
+  comments        Comment[]         @relation("UserComments")
+  likes           Like[]            @relation("UserLikes")
+  base            Base?
+  allianceId      String?
+  alliance        Alliance?         @relation(fields: [allianceId], references: [id])
+  enrollments     CourseEnrollment[]
+  referralLink    ReferralLink?
+  referredBy      Referral?         @relation("ReferredRelation")
+  referrals       Referral[]        @relation("ReferrerRelation")
+  parentAccess    ParentAccess[]
 }
 
 model Course {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  tasks       Task[]
+  id                Int      @id @default(autoincrement())
+  title             String
+  description       String?
+  deadlinePolicy    String   @default("mark")      // "block" | "penalty" | "mark"
+  penaltyMultiplier Float    @default(0.5)
+  tasks             Task[]
+  enrollments       CourseEnrollment[]
+}
+
+model CourseEnrollment {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  courseId   Int
+  enrolledAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@unique([userId, courseId])
 }
 
 model Task {
@@ -42,19 +61,22 @@ model Task {
 }
 
 model Lesson {
-  id        Int        @id @default(autoincrement())
-  title     String
-  videoUrl  String?
-  pdfId     String?    
-  taskId    Int
-  task      Task       @relation(fields: [taskId], references: [id])
-  questions Question[] 
-  attempts  HomeworkAttempt[] 
+  id                 Int        @id @default(autoincrement())
+  title              String
+  videoUrl           String?
+  imageUrl           String?
+  pdfId              String?
+  taskId             Int
+  deadlineOffsetDays Int?                     // null = no deadline; N = N days from enrollment
+  isFreeForReferrals Boolean    @default(false)
+  task               Task       @relation(fields: [taskId], references: [id])
+  questions          Question[]
+  attempts           HomeworkAttempt[]
 }
 
 model Question {
   id        Int     @id @default(autoincrement())
-  type      String  // "option" или "value"
+  type      String
   answer    String
   content   String?
   videoUrl  String?
@@ -71,8 +93,8 @@ model HomeworkAttempt {
   total     Int
   percent   Int
   answers   String?
+  isLate    Boolean  @default(false)
   createdAt DateTime @default(now())
-  
   user      User     @relation(fields: [userId], references: [telegramId])
   lesson    Lesson   @relation(fields: [lessonId], references: [id])
 }
@@ -84,29 +106,57 @@ model AuthCode {
   status    String   @default("PENDING")
 }
 
-// === ИГРОВЫЕ МОДЕЛИ ===
+// ── REFERRAL ──────────────────────────────────────────────
+
+model ReferralLink {
+  id        String     @id @default(uuid())
+  userId    Int        @unique
+  code      String     @unique
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals Referral[]
+}
+
+model Referral {
+  id          Int          @id @default(autoincrement())
+  referrerId  Int
+  referredId  Int          @unique
+  linkId      String
+  createdAt   DateTime     @default(now())
+  link        ReferralLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  referrer    User         @relation("ReferrerRelation", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred    User         @relation("ReferredRelation", fields: [referredId], references: [id], onDelete: Cascade)
+}
+
+// ── PARENT ACCESS ─────────────────────────────────────────
+
+model ParentAccess {
+  id        String   @id @default(uuid())
+  token     String   @unique @default(uuid())
+  studentId Int
+  label     String?  // e.g. "Мама Ивана"
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ── GAME MODELS ───────────────────────────────────────────
 
 model Character {
   id           Int      @id @default(autoincrement())
-  userId       BigInt   // Связь с User.telegramId
+  userId       BigInt
   name         String
-  class        String   // Воин, Маг и т.д.
+  class        String
   level        Int      @default(1)
   exp          Int      @default(0)
-  
-  // Характеристики
   strength     Int      @default(5)
   agility      Int      @default(5)
   endurance    Int      @default(5)
   intelligence Int      @default(5)
-  
   hp           Float    @default(100)
   maxHp        Float    @default(100)
-  
-  // Локация и инвентарь
-  arrMap       String?  @default("100-100") // Координаты X-Y
-  inventory    String   @default("[]")      // JSON строка с предметами
-  
+  arrMap       String?  @default("100-100")
+  inventory    String   @default("[]")
   active       Boolean  @default(true)
   user         User     @relation(fields: [userId], references: [telegramId])
 }
@@ -114,12 +164,10 @@ model Character {
 model Item {
   id           Int     @id @default(autoincrement())
   name         String
-  type         String  // Шлем, Меч и т.д.
-  class        String? // Ограничение по классу
+  type         String
+  class        String?
   description  String?
   rarity       String? @default("common")
-  
-  // Статы предмета
   strength     Int     @default(0)
   agility      Int     @default(0)
   endurance    Int     @default(0)
@@ -128,24 +176,22 @@ model Item {
   matk         Int     @default(0)
   pdef         Int     @default(0)
   mdef         Int     @default(0)
-  
-  img          String? // Путь к картинке
+  img          String?
 }
 
 model NPC {
-  id           Int     @id @default(autoincrement())
-  name         String
-  type         String? // Warrior, Mage, etc.
-  level        Int     @default(1)
-  hp           Int     @default(100)
-  attack       Int     @default(10)
-  armor        Int     @default(0)
-  dodge        Int     @default(0)
-  elite        Int     @default(0)
-  
-  drop_main    Int?    // ID предмета, который падает
-  interaction  String? // JSON диалогов/квестов
-  avatar       String?
+  id          Int     @id @default(autoincrement())
+  name        String
+  type        String?
+  level       Int     @default(1)
+  hp          Int     @default(100)
+  attack      Int     @default(10)
+  armor       Int     @default(0)
+  dodge       Int     @default(0)
+  elite       Int     @default(0)
+  drop_main   Int?
+  interaction String?
+  avatar      String?
 }
 
 model Dialog {
@@ -153,80 +199,67 @@ model Dialog {
   parent     Int     @default(0)
   title      String
   text       String
-  conditions String? // JSON условий
+  conditions String?
 }
 
 model Quest {
   id          Int     @id @default(autoincrement())
   title       String
   description String?
-  reward      String? // JSON награды
+  reward      String?
 }
 
 model NewsPost {
   id        Int       @id @default(autoincrement())
   title     String
-  content   String    // Текст поста (можно будет хранить HTML или Markdown)
-  tags      String?   @default("[]") // JSON-строка с массивом тегов, например '["физика", "анонс"]'
+  content   String
+  tags      String?   @default("[]")
   imageUrl  String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-
-  authorId  BigInt?   // Кто опубликовал (админ)
+  authorId  BigInt?
   author    User?     @relation("AuthoredNews", fields: [authorId], references: [telegramId])
-  
   comments  Comment[]
   likes     Like[]
 }
 
 model Comment {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   content   String
-  createdAt DateTime  @default(now())
-  
+  createdAt DateTime @default(now())
   postId    Int
-  post      NewsPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
+  post      NewsPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  BigInt
-  author    User      @relation("UserComments", fields: [authorId], references: [telegramId])
+  author    User     @relation("UserComments", fields: [authorId], references: [telegramId])
 }
 
 model Like {
-  id        Int       @id @default(autoincrement())
-  
-  postId    Int
-  post      NewsPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
-  userId    BigInt
-  user      User      @relation("UserLikes", fields: [userId], references: [telegramId])
-
-  // Защита: один пользователь может поставить только один лайк одному посту
-  @@unique([postId, userId]) 
+  id     Int      @id @default(autoincrement())
+  postId Int
+  post   NewsPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId BigInt
+  user   User     @relation("UserLikes", fields: [userId], references: [telegramId])
+  @@unique([postId, userId])
 }
 
 model Base {
-  id          String   @id @default(uuid())
-  userId      Int      @unique 
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  mapX        Int
-  mapY        Int
-
-  resources   String   @default("{\"money\": 1000, \"uranium\": 0, \"steel\": 500, \"energy\": 100}")
-  buildings   String   @default("[]")
-  sciencePts  Int      @default(0)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id         String   @id @default(uuid())
+  userId     Int      @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mapX       Int
+  mapY       Int
+  resources  String   @default("{\"money\": 1000, \"uranium\": 0, \"steel\": 500, \"energy\": 100}")
+  buildings  String   @default("[]")
+  sciencePts Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
   @@unique([mapX, mapY])
 }
 
 model Alliance {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  tag         String   @unique
-  members     User[]
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  name      String   @unique
+  tag       String   @unique
+  members   User[]
+  createdAt DateTime @default(now())
 }
