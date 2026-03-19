@@ -49,6 +49,15 @@ export default function CourseManagerPage() {
     setLoading(false)
   }
 
+  const reorder = async (type: 'task' | 'lesson' | 'question', itemId: number, direction: 'up' | 'down', parentId: number) => {
+    await fetch('/api/admin/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, id: itemId, direction, parentId }),
+    })
+    fetchCourseData()
+  }
+
   useEffect(() => { if (id) fetchCourseData() }, [id])
 
   // CREATE
@@ -256,7 +265,9 @@ export default function CourseManagerPage() {
                 ) : (
                   <>
                     <h2 className="font-bold text-2xl uppercase tracking-wider text-white mb-1 flex-grow">{task.title}</h2>
-                    <div className="flex gap-2 mb-1">
+                    <div className="flex gap-1 mb-1">
+                      <button onClick={() => reorder('task', task.id, 'up', Number(id))} className="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Вверх">↑</button>
+                      <button onClick={() => reorder('task', task.id, 'down', Number(id))} className="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Вниз">↓</button>
                       <button onClick={() => setEditTask({ id: task.id, title: task.title })} className="text-gray-500 hover:text-yellow-400 transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Редактировать тему">✏️</button>
                       <button onClick={() => deleteTask(task.id)} className="text-gray-500 hover:text-red-400 transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Удалить тему">🗑️</button>
                     </div>
@@ -324,6 +335,8 @@ export default function CourseManagerPage() {
                               {lesson.homeworkOpen ? '🔓 Открыт' : '🔒 Закрыт'}
                             </button>
                           )}
+                          <button onClick={() => reorder('lesson', lesson.id, 'up', task.id)} className="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Вверх">↑</button>
+                          <button onClick={() => reorder('lesson', lesson.id, 'down', task.id)} className="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Вниз">↓</button>
                           <button onClick={() => setEditLesson({ id: lesson.id, title: lesson.title, videoUrl: lesson.videoUrl || '' })} className="text-gray-500 hover:text-yellow-400 transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Редактировать урок">✏️</button>
                           <button onClick={() => deleteLesson(lesson.id)} className="text-gray-500 hover:text-red-400 transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Удалить урок">🗑️</button>
                         </div>
@@ -371,6 +384,8 @@ export default function CourseManagerPage() {
                                   <div className="flex gap-2">
                                     <span className="text-xs font-mono text-gray-400 bg-black/50 px-2 py-1 rounded">{q.type === 'option' ? 'ВЫБОР' : 'ВВОД'}</span>
                                     <span className="bg-green-500/10 text-green-400 font-mono text-xs px-2 py-1 rounded border border-green-500/20">Ответ: {q.answer}</span>
+                                    <button onClick={() => reorder('question', q.id, 'up', lesson.id)} className="text-gray-500 hover:text-white transition px-1.5 py-1 rounded hover:bg-white/5 text-xs" title="Вверх">↑</button>
+                                    <button onClick={() => reorder('question', q.id, 'down', lesson.id)} className="text-gray-500 hover:text-white transition px-1.5 py-1 rounded hover:bg-white/5 text-xs" title="Вниз">↓</button>
                                     <button onClick={() => setEditQuestion({ id: q.id, type: q.type, content: q.content || '', answer: q.answer, videoUrl: q.videoUrl || '', imageUrl: q.imageUrl || '' })} className="text-gray-500 hover:text-yellow-400 transition px-1.5 py-1 rounded hover:bg-white/5 text-xs" title="Редактировать">✏️</button>
                                     <button onClick={() => deleteQuestion(q.id)} className="text-gray-500 hover:text-red-400 transition px-1.5 py-1 rounded hover:bg-white/5 text-xs" title="Удалить">🗑️</button>
                                   </div>

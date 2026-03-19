@@ -1,11 +1,18 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+// app/api/admin/questions/route.ts
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(req: Request) {
   try {
-    const data = await req.json();
-    
-    // Создаем вопрос в базе данных
+    const data = await req.json()
+
+    // Get max order for this lesson's questions
+    const maxOrder = await prisma.question.aggregate({
+      where: { lessonId: Number(data.lessonId) },
+      _max: { order: true },
+    })
+    const nextOrder = (maxOrder._max.order ?? 0) + 1
+
     const question = await prisma.question.create({
       data: {
         type: data.type,
@@ -14,12 +21,13 @@ export async function POST(req: Request) {
         videoUrl: data.videoUrl || null,
         imageUrl: data.imageUrl || null,
         lessonId: Number(data.lessonId),
-      }
-    });
-    
-    return NextResponse.json({ success: true, question });
+        order: nextOrder,
+      },
+    })
+
+    return NextResponse.json({ success: true, question })
   } catch (error) {
-    console.error("Ошибка при сохранении ДЗ:", error);
-    return NextResponse.json({ error: 'Ошибка сервера при сохранении' }, { status: 500 });
+    console.error('Ошибка при сохранении ДЗ:', error)
+    return NextResponse.json({ error: 'Ошибка сервера при сохранении' }, { status: 500 })
   }
 }

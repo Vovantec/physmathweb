@@ -12,10 +12,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       where: { id: parseInt(id) },
       include: {
         tasks: {
+          orderBy: { order: 'asc' },
           include: {
             lessons: {
+              orderBy: { order: 'asc' },
               include: {
-                questions: true,
+                questions: {
+                  orderBy: { order: 'asc' },
+                },
                 attempts: true,
               },
             },
@@ -26,7 +30,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     if (!course) return NextResponse.json({ error: 'Курс не найден' }, { status: 404 })
 
-    // Ensure new fields have defaults if migration not yet applied
     return NextResponse.json({
       courseType: 'self',
       maxStudents: null,

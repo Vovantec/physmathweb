@@ -1,7 +1,4 @@
-// Добавить в app/api/lessons/[id]/route.ts — нужно вернуть homeworkOpen и courseType
-// Текущий GET уже возвращает весь lesson из Prisma, но нам нужны поля из Course
-
-// Обновлённый GET в app/api/lessons/[id]/route.ts:
+// app/api/lessons/[id]/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -19,7 +16,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const lesson = await prisma.lesson.findUnique({
     where: { id: parseInt(id) },
     include: {
-      questions: true,
+      questions: {
+        orderBy: { order: 'asc' },
+      },
       task: {
         include: {
           course: {
@@ -27,10 +26,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
               id: true,
               deadlinePolicy: true,
               penaltyMultiplier: true,
-              courseType: true,   // NEW
-            }
-          }
-        }
+              courseType: true,
+            },
+          },
+        },
       },
       attempts: targetTgId ? {
         where: { userId: targetTgId },
@@ -41,7 +40,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   if (!lesson) return NextResponse.json({ error: 'Урок не найден' }, { status: 404 })
 
-  const lessonWithAttempts = { ...lesson, attempts: lesson.attempts || [] }
+  const lessonWithAttempts = {
+    ...lesson,
+    homeworkOpen: (lesson as any).homeworkOpen ?? true,
+    attempts: lesson.attempts || [],
+  }
 
   const safeLesson = JSON.parse(JSON.stringify(lessonWithAttempts, (key, value) =>
     typeof value === 'bigint' ? value.toString() : value
