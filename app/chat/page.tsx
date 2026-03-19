@@ -377,30 +377,22 @@ export default function ChatPage() {
                   ОК
                 </button>
               </div>
-              {/* Приватный переключатель — только для не-админов или всегда */}
-              {!isAdmin && (
-                <label
-                  className="flex items-center gap-2 cursor-pointer px-0.5"
-                  onClick={() => setNewChanPrivate(v => !v)}
-                >
-                  <div className={`relative w-8 h-4 rounded-full border transition flex-shrink-0 ${
-                    newChanPrivate ? 'bg-yellow-400 border-yellow-400' : 'bg-black/40 border-white/20'
-                  }`}>
-                    <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
-                      newChanPrivate ? 'left-4 bg-black' : 'left-0.5 bg-white/40'
-                    }`} />
-                  </div>
-                  <span className="text-xs font-mono text-gray-400 select-none">
-                    {newChanPrivate ? '🔒 Приватный' : '🌐 Публичный'}
-                  </span>
-                </label>
-              )}
-              {/* Админ всегда создаёт публичные — показываем пояснение */}
-              {isAdmin && (
-                <p className="text-[10px] font-mono text-gray-600 px-0.5">
-                  Публичный канал (только для администраторов)
-                </p>
-              )}
+              {/* Переключатель приватности — доступен всем */}
+              <label
+                className="flex items-center gap-2 cursor-pointer px-0.5"
+                onClick={() => setNewChanPrivate(v => !v)}
+              >
+                <div className={`relative w-8 h-4 rounded-full border transition flex-shrink-0 ${
+                  newChanPrivate ? 'bg-yellow-400 border-yellow-400' : 'bg-black/40 border-white/20'
+                }`}>
+                  <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
+                    newChanPrivate ? 'left-4 bg-black' : 'left-0.5 bg-white/40'
+                  }`} />
+                </div>
+                <span className="text-xs font-mono text-gray-400 select-none">
+                  {newChanPrivate ? '🔒 Приватный' : '🌐 Публичный'}
+                </span>
+              </label>
             </div>
           )}
 
