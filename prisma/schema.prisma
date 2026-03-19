@@ -32,8 +32,10 @@ model User {
   parentAccess    ParentAccess[]
   notificationSettings  NotificationSettings?
   prizeAwards           PrizeAward[]
-  chatMessages    ChatMessage[]
+  chatMessages     ChatMessage[]
   chatReadPointers ChatReadPointer[]
+  chatMembers      ChatMember[]
+  chatInvites      ChatInvite[]
 }
 
 model Course {
@@ -365,9 +367,36 @@ model ChatChannel {
   description  String?
   isPinned     Boolean   @default(false)
   isDefault    Boolean   @default(false)
+  isPrivate    Boolean   @default(false)
   createdAt    DateTime  @default(now())
   messages     ChatMessage[]
   readPointers ChatReadPointer[]
+  members      ChatMember[]
+  invites      ChatInvite[]
+}
+
+model ChatMember {
+  id        Int         @id @default(autoincrement())
+  channelId Int
+  userId    Int
+  role      String      @default("member")   // "owner" | "member"
+  joinedAt  DateTime    @default(now())
+  channel   ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+}
+
+model ChatInvite {
+  id         String      @id @default(uuid())
+  channelId  Int
+  createdBy  Int
+  usageLimit Int         @default(10)
+  usedCount  Int         @default(0)
+  expiresAt  DateTime
+  createdAt  DateTime    @default(now())
+  channel    ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  creator    User        @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 }
 
 model ChatMessage {
