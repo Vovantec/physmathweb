@@ -40,7 +40,7 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
 
   return (
     <>
-      <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-16 border-b border-white/20 pb-6 gap-4">
+      <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-16 border-b border-white/20 pb-6 gap-4 md:gap-6">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition flex-shrink-0">
           <span className="text-4xl md:text-5xl">⚛️</span>
@@ -48,14 +48,14 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
             <span className="text-xs md:text-sm text-yellow-400 font-bold tracking-[0.3em] mb-1 ml-1 opacity-90">
               by Шевелев
             </span>
-            <span className="text-4xl md:text-5xl font-extrabold text-white leading-none">
+            <span className="text-4xl md:text-4xl font-extrabold text-white leading-none">
               ФИЗ<span className="text-gray-500">МАТ</span>
             </span>
           </div>
         </Link>
 
         {/* Nav + auth — single row, no wrap on desktop */}
-        <div className="flex gap-2 items-center flex-wrap justify-center md:flex-nowrap">
+        <div className="flex gap-2 items-center flex-wrap justify-center">
 
           <NavLink href="/news"        label="Новости"   active={activePage === 'news'} />
           <NavLink href="/courses"     label="Курсы"     active={activePage === 'courses'} />
@@ -65,7 +65,7 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
           {/* Чат с бейджом */}
           <Link
             href="/chat"
-            className={`relative flex-shrink-0 py-2.5 px-4 rounded-lg font-bold uppercase tracking-widest text-sm transition ${
+            className={`relative flex-shrink-0 py-2.5 px-3 rounded-lg font-bold uppercase tracking-widest text-sm transition ${
               activePage === 'chat'
                 ? 'bg-yellow-400 text-black'
                 : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
@@ -134,7 +134,7 @@ function NavLink({ href, label, active }: { href: string; label: string; active:
   return (
     <Link
       href={href}
-      className={`flex-shrink-0 py-2.5 px-4 rounded-lg font-bold uppercase tracking-widest text-sm transition ${
+      className={`flex-shrink-0 py-2.5 px-3 rounded-lg font-bold uppercase tracking-widest text-sm transition ${
         active
           ? 'bg-yellow-400 text-black'
           : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
@@ -153,7 +153,7 @@ function AskCuratorFab() {
       href="/ask-curator"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-yellow-400 hover:bg-yellow-300 text-black font-extrabold uppercase tracking-widest rounded-full shadow-lg shadow-yellow-400/20 transition-all duration-200 overflow-hidden"
+      className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-yellow-400 hover:bg-yellow-300 text-black font-extrabold uppercase tracking-widest rounded-full shadow-lg shadow-yellow-400/20 transition-all duration-200"
       style={{
         paddingTop: '14px',
         paddingBottom: '14px',
