@@ -3,16 +3,19 @@ import Link from 'next/link'
 import React from 'react'
 
 const NAV_ITEMS = [
-  { href: '/admin',               icon: '📊', label: 'Сводка'                },
-  { href: '/admin/news',          icon: '📢', label: 'Новости'               },
-  { href: '/admin/courses',       icon: '📚', label: 'Курсы'                 },
-  { href: '/admin/enrollments',   icon: '📋', label: 'Заявки'                },
-  { href: '/admin/deadlines',     icon: '⏰', label: 'Дедлайны и доступ'     },
-  { href: '/admin/heatmap',       icon: '🌡️', label: 'Тепловая карта'        },
-  { href: '/admin/parent-access', icon: '👨‍👩‍👧', label: 'Доступ для родителей' },
-  { href: '/admin/prizes',        icon: '🎁', label: 'Призы'                 },
-  { href: '/admin/prizes/pools',  icon: '🏆', label: 'Розыгрыши'             },
-  { href: '/admin/students',      icon: '👥', label: 'База студентов'         },
+  { href: '/admin',                   icon: '📊', label: 'Сводка'                },
+  { href: '/admin/news',              icon: '📢', label: 'Новости'               },
+  { href: '/admin/courses',           icon: '📚', label: 'Курсы'                 },
+  { href: '/admin/enrollments',       icon: '📋', label: 'Заявки'                },
+  { href: '/admin/deadlines',         icon: '⏰', label: 'Дедлайны и доступ'     },
+  { href: '/admin/heatmap',           icon: '🌡️', label: 'Тепловая карта'        },
+  { href: '/admin/parent-access',     icon: '👨‍👩‍👧', label: 'Доступ для родителей' },
+  { href: '/admin/prizes',            icon: '🎁', label: 'Призы'                 },
+  { href: '/admin/prizes/pools',      icon: '🏆', label: 'Розыгрыши'             },
+  { href: '/admin/students',          icon: '👥', label: 'База студентов'         },
+  { href: '/admin/exams',             icon: '📝', label: 'Варианты ЕГЭ' },
+  { href: '/admin/exam-tickets',      icon: '🎯', label: 'Тикеты ЕГЭ' },
+  { href: '/admin/curator-questions', icon: '💬', label: 'Вопросы студентов' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

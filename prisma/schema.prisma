@@ -36,6 +36,12 @@ model User {
   chatReadPointers ChatReadPointer[]
   chatMembers      ChatMember[]
   chatInvites      ChatInvite[]
+  isPremium          Boolean  @default(false)
+  questionsLimit     Int      @default(5)
+  isCurator          Boolean  @default(false)
+  curatorQuestions   CuratorQuestion[] @relation("StudentQuestions")
+  assignedQuestions  CuratorQuestion[] @relation("CuratorQuestions")
+  examAttempts       ExamAttempt[]
 }
 
 model Course {
@@ -423,4 +429,114 @@ model ChatReadPointer {
   channel       ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@id([userId, channelId])
+}
+
+// ── CURATOR QUESTIONS ────────────────────────────────────
+
+model CuratorQuestion {
+  id          Int      @id @default(autoincrement())
+  studentId   Int
+  curatorId   Int?                           // null = не назначен
+  subject     String                         // "Физика" | "Математика"
+  text        String
+  imageUrl    String?                        // фото вопроса
+  status      String   @default("open")     // "open" | "answered" | "closed"
+  answer      String?
+  answerImageUrl String?
+  answeredAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  student     User     @relation("StudentQuestions",  fields: [studentId], references: [id], onDelete: Cascade)
+  curator     User?    @relation("CuratorQuestions", fields: [curatorId],  references: [id])
+}
+
+// ── EXAM VARIANTS (ЕГЭ) ──────────────────────────────────
+
+model ExamVariant {
+  id          Int          @id @default(autoincrement())
+  title       String                          // "Вариант 1 — Физика 2024"
+  subject     String                          // "Физика" | "Математика"
+  year        Int?
+  pdfUrl      String?                         // PDF всего варианта
+  isPublished Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  tasks       ExamTask[]
+  attempts    ExamAttempt[]
+}
+
+model ExamTask {
+  id          Int         @id @default(autoincrement())
+  variantId   Int
+  number      Int                             // номер задания (1-26 для физики)
+  part        Int         @default(1)         // 1 = краткий ответ, 2 = развёрнутый
+  text        String
+  imageUrl    String?                         // картинка к заданию
+  pdfUrl      String?                         // отдельный PDF для задания
+  answer      String?                         // правильный ответ (только для part=1)
+  maxScore    Int         @default(1)         // максимальный балл
+  topic       String?                         // тема задания (для статистики)
+  order       Int         @default(0)
+  variant     ExamVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  answers     ExamAnswer[]
+  feedbacks   ExamFeedback[]
+}
+
+model ExamAttempt {
+  id          Int           @id @default(autoincrement())
+  studentId   Int
+  variantId   Int
+  status      String        @default("draft")
+  // "draft"     — студент заполняет
+  // "submitted" — отправлен на проверку
+  // "reviewing" — куратор проверяет
+  // "revision"  — возвращён на доработку
+  // "closed"    — проверка завершена
+  part1Score  Int?                            // автосчёт баллов часть 1
+  part2Score  Int?                            // баллы от куратора часть 2
+  totalScore  Int?
+  curatorId   Int?
+  curatorNote String?                         // общий комментарий куратора
+  submittedAt DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  student     User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  variant     ExamVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  answers     ExamAnswer[]
+  feedbacks   ExamFeedback[]
+
+  @@unique([studentId, variantId])            // один активный тикет на вариант
+}
+
+model ExamAnswer {
+  id          Int         @id @default(autoincrement())
+  attemptId   Int
+  taskId      Int
+  // Для part=1: текстовый ответ
+  textAnswer  String?
+  // Для part=2: URL фото решения
+  imageUrl    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  attempt     ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  task        ExamTask    @relation(fields: [taskId],    references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, taskId])
+}
+
+model ExamFeedback {
+  id          Int         @id @default(autoincrement())
+  attemptId   Int
+  taskId      Int
+  curatorId   Int
+  isCorrect   Boolean?                        // null = не проверено
+  score       Int?                            // выставленный балл (0..maxScore)
+  comment     String?
+  imageUrl    String?                         // фото с пометками куратора
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  attempt     ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  task        ExamTask    @relation(fields: [taskId],    references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, taskId])
 }

@@ -65,6 +65,9 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
         {/* Курсы */}
         <NavLink href="/courses" label="Курсы" active={activePage === 'courses'} />
 
+        {/* Варианты */}
+        <NavLink href="/courses" label="Варианты" active={activePage === 'exams'} />
+
         {/* Рейтинг */}
         <NavLink href="/leaderboard" label="🏆 Рейтинг" active={activePage === 'leaderboard'} />
 

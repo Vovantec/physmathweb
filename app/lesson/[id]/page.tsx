@@ -1,6 +1,4 @@
 // app/lesson/[id]/page.tsx
-// Путь: app/lesson/[id]/page.tsx
-
 "use client";
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -74,7 +72,6 @@ export default function LessonPage() {
   useEffect(() => {
     if (!id || authLoading) return;
 
-    // Redirect to home if not authenticated
     if (!user) {
       router.replace('/');
       return;
@@ -85,7 +82,6 @@ export default function LessonPage() {
       .then(async (data: LessonData) => {
         setLesson(data);
 
-        // Auto-enroll in course
         const enrollRes = await fetch(`/api/courses/${data.task.courseId}/enroll`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -93,7 +89,6 @@ export default function LessonPage() {
         });
         const enrollData = await enrollRes.json();
 
-        // Calculate personal deadline
         if (enrollData.enrolledAt && data.deadlineOffsetDays != null) {
           const status = getDeadlineStatus(
             new Date(enrollData.enrolledAt),
@@ -109,7 +104,6 @@ export default function LessonPage() {
           });
         }
 
-        // Restore previous attempt state
         if (data.attempts && data.attempts.length > 0) {
           const best = data.attempts.reduce((prev, cur) =>
             prev.percent > cur.percent ? prev : cur
@@ -168,7 +162,6 @@ export default function LessonPage() {
     }
   };
 
-  // Show spinner while auth check or lesson loading
   if (authLoading || lessonLoading) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center text-white font-mono animate-pulse">
@@ -189,6 +182,14 @@ export default function LessonPage() {
   const bestPercent   = lesson.attempts?.reduce((max, a) => Math.max(max, a.percent), 0) || 0;
   const canSolve      = attemptsCount < maxAttempts && bestPercent < 100 && !deadlineInfo?.isBlocked;
   const showVideos    = attemptsCount >= maxAttempts || bestPercent === 100;
+
+  // Build PDF URL from path (same as video serving logic)
+  const getPdfUrl = (pdfId: string) => {
+    // If it's already a full URL, use as-is
+    if (pdfId.startsWith('http')) return pdfId;
+    // Otherwise treat as server path via courses route
+    return `/courses/${pdfId}`;
+  };
 
   return (
     <div className="min-h-screen bg-[#121212] text-white p-6 md:p-12 font-sans">
@@ -273,7 +274,7 @@ export default function LessonPage() {
           </div>
         )}
 
-        {/* Video breakdowns */}
+        {/* Video breakdowns — shown after all attempts or perfect score */}
         {showVideos && lesson.questions.length > 0 && (
           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 md:p-8 mb-10 relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
@@ -313,7 +314,7 @@ export default function LessonPage() {
           </div>
         )}
 
-        {/* Video lecture */}
+        {/* Video lecture — only shown if videoUrl exists */}
         {lesson.videoUrl && (
           <div className="relative aspect-video bg-black border-2 border-white/20 rounded-xl mb-8 flex items-center justify-center overflow-hidden shadow-2xl">
             <iframe
@@ -325,11 +326,12 @@ export default function LessonPage() {
           </div>
         )}
 
-        {/* PDF */}
+        {/* PDF Homework file — shown if pdfId exists */}
         {lesson.pdfId && (
-          <div className="bg-[#1a1a1a] border border-white/10 p-6 rounded-xl mb-8 flex items-center justify-between group hover:border-blue-500/50 transition">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center">
+          <div className="bg-[#1a1a1a] border border-blue-500/30 p-6 rounded-xl mb-8 flex items-center justify-between group hover:border-blue-500/60 transition relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+            <div className="flex items-center gap-4 pl-2">
+              <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -337,17 +339,25 @@ export default function LessonPage() {
               </div>
               <div>
                 <h3 className="font-bold text-lg text-white">Материалы к уроку</h3>
-                <p className="text-sm text-gray-500 font-mono">Документ PDF</p>
+                <p className="text-sm text-gray-500 font-mono">PDF документ с заданиями</p>
               </div>
             </div>
-            <a href={`/api/files/${lesson.pdfId}`} target="_blank" download
-              className="flex items-center gap-2 px-5 py-3 bg-white text-black font-bold uppercase tracking-widest text-xs rounded hover:bg-yellow-400 transition">
-              Скачать
+            <a
+              href={getPdfUrl(lesson.pdfId)}
+              target="_blank"
+              rel="noreferrer"
+              download
+              className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white font-bold uppercase tracking-widest text-xs rounded hover:bg-blue-500 transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Скачать PDF
             </a>
           </div>
         )}
 
-        {/* Homework */}
+        {/* Homework questions */}
         <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-yellow-400" />
 

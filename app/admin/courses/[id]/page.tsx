@@ -11,21 +11,24 @@ export default function CourseManagerPage() {
 
   // Create forms
   const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [newLesson, setNewLesson] = useState({ title: '', videoUrl: '', taskId: 0 })
+  const [newLesson, setNewLesson] = useState({ title: '', videoUrl: '', pdfId: '', taskId: 0 })
   const [newQuestion, setNewQuestion] = useState({ type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: 0 })
 
   // Edit states
   const [editTask, setEditTask] = useState<{ id: number; title: string } | null>(null)
-  const [editLesson, setEditLesson] = useState<{ id: number; title: string; videoUrl: string } | null>(null)
+  const [editLesson, setEditLesson] = useState<{ id: number; title: string; videoUrl: string; pdfId: string } | null>(null)
   const [editQuestion, setEditQuestion] = useState<{ id: number; type: string; content: string; answer: string; videoUrl: string; imageUrl: string } | null>(null)
 
   // File manager
   const [isFileManagerOpen, setIsFileManagerOpen] = useState(false)
-  const [currentFileTarget, setCurrentFileTarget] = useState<'questionVideo' | 'questionImage' | 'lessonVideo' | 'editLessonVideo' | 'editQuestionVideo' | 'editQuestionImage' | null>(null)
+  const [currentFileTarget, setCurrentFileTarget] = useState<
+    'questionVideo' | 'questionImage' | 'lessonVideo' | 'lessonPdf' |
+    'editLessonVideo' | 'editLessonPdf' | 'editQuestionVideo' | 'editQuestionImage' | null
+  >(null)
 
   const handleOpenManager = (target: typeof currentFileTarget, contextId: number) => {
-    if (target === 'lessonVideo') {
-      setNewLesson(prev => prev.taskId === contextId ? { ...prev } : { title: '', videoUrl: '', taskId: contextId })
+    if (target === 'lessonVideo' || target === 'lessonPdf') {
+      setNewLesson(prev => prev.taskId === contextId ? { ...prev } : { title: '', videoUrl: '', pdfId: '', taskId: contextId })
     } else if (target === 'questionVideo' || target === 'questionImage') {
       setNewQuestion(prev => prev.lessonId === contextId ? { ...prev } : { type: 'value', content: '', answer: '', videoUrl: '', imageUrl: '', lessonId: contextId })
     }
@@ -35,9 +38,11 @@ export default function CourseManagerPage() {
 
   const handleSelectFile = (path: string) => {
     if (currentFileTarget === 'lessonVideo') setNewLesson(prev => ({ ...prev, videoUrl: path }))
+    else if (currentFileTarget === 'lessonPdf') setNewLesson(prev => ({ ...prev, pdfId: path }))
     else if (currentFileTarget === 'questionVideo') setNewQuestion(prev => ({ ...prev, videoUrl: path }))
     else if (currentFileTarget === 'questionImage') setNewQuestion(prev => ({ ...prev, imageUrl: path }))
     else if (currentFileTarget === 'editLessonVideo') setEditLesson(prev => prev ? { ...prev, videoUrl: path } : prev)
+    else if (currentFileTarget === 'editLessonPdf') setEditLesson(prev => prev ? { ...prev, pdfId: path } : prev)
     else if (currentFileTarget === 'editQuestionVideo') setEditQuestion(prev => prev ? { ...prev, videoUrl: path } : prev)
     else if (currentFileTarget === 'editQuestionImage') setEditQuestion(prev => prev ? { ...prev, imageUrl: path } : prev)
     setIsFileManagerOpen(false)
@@ -80,7 +85,7 @@ export default function CourseManagerPage() {
       body: JSON.stringify({ ...newLesson, taskId, homeworkOpen: !isGroup }),
       headers: { 'Content-Type': 'application/json' },
     })
-    setNewLesson({ title: '', videoUrl: '', taskId: 0 })
+    setNewLesson({ title: '', videoUrl: '', pdfId: '', taskId: 0 })
     fetchCourseData()
   }
 
@@ -119,7 +124,7 @@ export default function CourseManagerPage() {
     if (!editLesson) return
     await fetch(`/api/admin/lessons/${editLesson.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ title: editLesson.title, videoUrl: editLesson.videoUrl }),
+      body: JSON.stringify({ title: editLesson.title, videoUrl: editLesson.videoUrl, pdfId: editLesson.pdfId }),
       headers: { 'Content-Type': 'application/json' },
     })
     setEditLesson(null)
@@ -296,15 +301,33 @@ export default function CourseManagerPage() {
                               onChange={e => setEditLesson({ ...editLesson, title: e.target.value })}
                               placeholder="Название урока"
                             />
+                            {/* Video URL */}
                             <div className="flex gap-2">
                               <input
                                 className="flex-grow bg-black/40 border border-white/10 rounded p-2 text-white focus:border-yellow-400 focus:outline-none font-mono text-sm"
                                 value={editLesson.videoUrl}
                                 onChange={e => setEditLesson({ ...editLesson, videoUrl: e.target.value })}
-                                placeholder="URL видео"
+                                placeholder="URL видео-лекции"
                               />
-                              <button onClick={() => { setCurrentFileTarget('editLessonVideo'); setIsFileManagerOpen(true) }} className="bg-white/10 px-3 py-2 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition">📁</button>
+                              <button onClick={() => { setCurrentFileTarget('editLessonVideo'); setIsFileManagerOpen(true) }} className="bg-white/10 px-3 py-2 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition" title="Выбрать видео">📁</button>
                             </div>
+                            {/* PDF */}
+                            <div className="flex gap-2">
+                              <input
+                                className="flex-grow bg-black/40 border border-blue-500/30 rounded p-2 text-white focus:border-blue-400 focus:outline-none font-mono text-sm"
+                                value={editLesson.pdfId}
+                                onChange={e => setEditLesson({ ...editLesson, pdfId: e.target.value })}
+                                placeholder="Путь к PDF с ДЗ"
+                              />
+                              <button onClick={() => { setCurrentFileTarget('editLessonPdf'); setIsFileManagerOpen(true) }} className="bg-blue-500/20 px-3 py-2 rounded border border-blue-500/30 hover:bg-blue-500/40 transition" title="Выбрать PDF">📄</button>
+                            </div>
+                            {editLesson.pdfId && (
+                              <div className="text-xs text-blue-400 font-mono bg-blue-900/20 px-3 py-1.5 rounded border border-blue-500/20 flex items-center gap-2">
+                                <span>📄</span>
+                                <span className="truncate">{editLesson.pdfId}</span>
+                                <button onClick={() => setEditLesson({ ...editLesson, pdfId: '' })} className="ml-auto text-gray-500 hover:text-red-400 transition">✕</button>
+                              </div>
+                            )}
                             <div className="flex gap-2">
                               <button onClick={saveLesson} className="bg-yellow-400 text-black font-bold px-4 py-2 rounded hover:bg-yellow-300 transition text-sm">✓ Сохранить</button>
                               <button onClick={() => setEditLesson(null)} className="text-gray-500 hover:text-white px-3 py-2 transition text-sm">Отмена</button>
@@ -314,15 +337,19 @@ export default function CourseManagerPage() {
                           <div className="flex flex-col gap-1 flex-grow">
                             <span className="font-medium font-mono text-lg text-gray-200">{lesson.title}</span>
                             <span className="text-xs font-mono text-gray-500 bg-white/5 px-2 py-1 rounded border border-white/5 max-w-xs truncate">
-                              {lesson.videoUrl ? `URL: ${lesson.videoUrl}` : 'Видео не прикреплено'}
+                              {lesson.videoUrl ? `🎥 ${lesson.videoUrl}` : '🎥 Видео не прикреплено'}
                             </span>
+                            {lesson.pdfId && (
+                              <span className="text-xs font-mono text-blue-400 bg-blue-900/10 px-2 py-1 rounded border border-blue-500/20 max-w-xs truncate">
+                                📄 {lesson.pdfId}
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
 
                       {editLesson?.id !== lesson.id && (
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {/* Open/Close HW button for group courses */}
                           {isGroup && (
                             <button
                               onClick={() => toggleHomework(lesson.id, !lesson.homeworkOpen)}
@@ -337,7 +364,7 @@ export default function CourseManagerPage() {
                           )}
                           <button onClick={() => reorder('lesson', lesson.id, 'up', task.id)} className="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Вверх">↑</button>
                           <button onClick={() => reorder('lesson', lesson.id, 'down', task.id)} className="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Вниз">↓</button>
-                          <button onClick={() => setEditLesson({ id: lesson.id, title: lesson.title, videoUrl: lesson.videoUrl || '' })} className="text-gray-500 hover:text-yellow-400 transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Редактировать урок">✏️</button>
+                          <button onClick={() => setEditLesson({ id: lesson.id, title: lesson.title, videoUrl: lesson.videoUrl || '', pdfId: lesson.pdfId || '' })} className="text-gray-500 hover:text-yellow-400 transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Редактировать урок">✏️</button>
                           <button onClick={() => deleteLesson(lesson.id)} className="text-gray-500 hover:text-red-400 transition text-sm px-2 py-1 rounded hover:bg-white/5" title="Удалить урок">🗑️</button>
                         </div>
                       )}
@@ -444,13 +471,43 @@ export default function CourseManagerPage() {
               {/* Add lesson form */}
               <div className="bg-white/5 p-6 rounded-xl border border-dashed border-white/20 mt-6">
                 <span className="block text-xs font-mono text-white uppercase tracking-widest mb-4">Создать новый урок в теме</span>
-                <div className="flex flex-col md:flex-row gap-3">
-                  <input className="flex-grow bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm" placeholder="Название урока" value={newLesson.taskId === task.id ? newLesson.title : ''} onChange={e => setNewLesson({ ...newLesson, title: e.target.value, taskId: task.id })} />
-                  <div className="flex flex-grow gap-2">
-                    <input className="w-full bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm" placeholder="Ссылка на лекцию" value={newLesson.taskId === task.id ? newLesson.videoUrl : ''} onChange={e => setNewLesson({ ...newLesson, videoUrl: e.target.value, taskId: task.id })} />
-                    <button type="button" onClick={() => handleOpenManager('lessonVideo', task.id)} className="bg-white/10 px-4 py-3 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition">📁</button>
+                <div className="flex flex-col gap-3">
+                  <input
+                    className="w-full bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
+                    placeholder="Название урока"
+                    value={newLesson.taskId === task.id ? newLesson.title : ''}
+                    onChange={e => setNewLesson({ ...newLesson, title: e.target.value, taskId: task.id })}
+                  />
+                  {/* Video */}
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-grow bg-black/40 border border-white/10 rounded p-3 text-white focus:border-yellow-400 focus:outline-none transition font-mono text-sm"
+                      placeholder="Ссылка на видео-лекцию (необязательно)"
+                      value={newLesson.taskId === task.id ? newLesson.videoUrl : ''}
+                      onChange={e => setNewLesson({ ...newLesson, videoUrl: e.target.value, taskId: task.id })}
+                    />
+                    <button type="button" onClick={() => handleOpenManager('lessonVideo', task.id)} className="bg-white/10 px-4 py-3 rounded border border-white/20 hover:bg-yellow-400 hover:text-black transition" title="Выбрать видео">📁</button>
                   </div>
-                  <button onClick={() => addLesson(task.id)} className="bg-white text-black font-extrabold uppercase tracking-widest text-xs px-8 py-3 rounded hover:bg-yellow-400 transition transform active:scale-95 whitespace-nowrap">
+                  {/* PDF */}
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-grow bg-black/40 border border-blue-500/20 rounded p-3 text-white focus:border-blue-400 focus:outline-none transition font-mono text-sm"
+                      placeholder="Путь к PDF с домашним заданием (необязательно)"
+                      value={newLesson.taskId === task.id ? newLesson.pdfId : ''}
+                      onChange={e => setNewLesson({ ...newLesson, pdfId: e.target.value, taskId: task.id })}
+                    />
+                    <button type="button" onClick={() => handleOpenManager('lessonPdf', task.id)} className="bg-blue-500/20 px-4 py-3 rounded border border-blue-500/30 hover:bg-blue-500/40 transition" title="Выбрать PDF">📄</button>
+                  </div>
+                  {newLesson.taskId === task.id && newLesson.pdfId && (
+                    <div className="text-xs text-blue-400 font-mono bg-blue-900/10 px-3 py-2 rounded border border-blue-500/20 flex items-center gap-2">
+                      <span>📄 PDF прикреплён:</span>
+                      <span className="truncate">{newLesson.pdfId}</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => addLesson(task.id)}
+                    className="bg-white text-black font-extrabold uppercase tracking-widest text-xs px-8 py-3 rounded hover:bg-yellow-400 transition transform active:scale-95 whitespace-nowrap self-end"
+                  >
                     Добавить урок
                   </button>
                 </div>

@@ -32,6 +32,7 @@ export default function ChatMembersPage() {
   const [addingId, setAddingId] = useState<number | null>(null)
   const [kickingId, setKickingId] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // Invite form
   const [inviteLimit, setInviteLimit] = useState('10')
@@ -85,6 +86,19 @@ export default function ChatMembersPage() {
     if (res.ok) router.push('/chat')
   }
 
+  const deleteChannel = async () => {
+    if (!confirm(`Удалить канал «${data?.channel?.name}»? Это действие необратимо — все сообщения будут удалены.`)) return
+    setDeleting(true)
+    const res = await fetch(`/api/chat/channels/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      router.push('/chat')
+    } else {
+      const err = await res.json()
+      alert(err.error || 'Ошибка при удалении канала')
+      setDeleting(false)
+    }
+  }
+
   const createInvite = async () => {
     setCreatingInvite(true)
     const res = await fetch(`/api/chat/channels/${id}/invites`, {
@@ -132,16 +146,29 @@ export default function ChatMembersPage() {
         </Link>
 
         <div className="flex items-center gap-4 mb-8">
-          <div>
+          <div className="flex-grow">
             <h1 className="text-3xl font-extrabold uppercase tracking-tight">{data.channel?.name}</h1>
             <span className="text-xs font-mono text-gray-500 mt-1 block">
               🔒 Приватный · {data.members.length} участников
             </span>
           </div>
           <div className="h-px bg-white/20 flex-grow" />
-          {data.myRole !== 'owner' && (
+
+          {/* Leave button (non-owners) */}
+          {data.myRole !== 'owner' && !user?.isAdmin && (
             <button onClick={leaveChat} className="text-xs font-bold uppercase tracking-widest bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition">
               Покинуть
+            </button>
+          )}
+
+          {/* Delete channel button (owner or admin) */}
+          {canManage && (
+            <button
+              onClick={deleteChannel}
+              disabled={deleting}
+              className="text-xs font-bold uppercase tracking-widest bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/30 px-4 py-2 rounded-lg transition disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {deleting ? '...' : '🗑️ Удалить канал'}
             </button>
           )}
         </div>
