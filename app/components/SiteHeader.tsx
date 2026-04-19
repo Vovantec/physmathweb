@@ -6,7 +6,7 @@ import { useAuth, type AuthUser } from '@/app/hooks/useAuth'
 import BotLogin from './BotLogin'
 
 interface SiteHeaderProps {
-  activePage?: 'news' | 'courses' | 'leaderboard' | 'chat'
+  activePage?: 'news' | 'courses' | 'leaderboard' | 'chat' | 'exams'
   onAuth?: (user: AuthUser) => void
 }
 
@@ -66,7 +66,7 @@ export default function SiteHeader({ activePage, onAuth }: SiteHeaderProps) {
         <NavLink href="/courses" label="Курсы" active={activePage === 'courses'} />
 
         {/* Варианты */}
-        <NavLink href="/courses" label="Варианты" active={activePage === 'exams'} />
+        <NavLink href="/exams" label="Варианты" active={activePage === 'exams'} />
 
         {/* Рейтинг */}
         <NavLink href="/leaderboard" label="🏆 Рейтинг" active={activePage === 'leaderboard'} />
